@@ -1,5 +1,5 @@
 // 攒钱计划 PWA Service Worker：缓存应用外壳，离线可访问
-const CACHE = 'savings-plan-v1';
+const CACHE = 'savings-plan-v2';
 const SHELL = [
   '/',
   '/index.html',

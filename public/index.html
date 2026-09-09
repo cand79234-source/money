@@ -365,6 +365,7 @@ const defState=()=>({
   templates:[],
   debts:[],
   salary:0,            // 月薪资
+  initial:{L1:0,L2:0,L3:0,LG:0},  // 开始前已有的积蓄，按四档分别记（已计入各档已攒与总目标）
   wbudget:{},          // 自定义周预算：{ '2026-09':[a,b,c,d] }
   calcM:0,             // 计算页选中的月份（只存 1~12，不存年份）
   booked:{},           // 已入账的月份：{ '2026-09':true }
@@ -400,6 +401,9 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1700);}
 function getMonth(k){if(!S.months[k])S.months[k]={total:0,items:[],flex:[],weeks:4};return S.months[k];}
 
+/* 这一档真正已攒的 = 之前累计攒的 + 开始前已有的（点总览右上角钱币填的初始金额） */
+function savedOf(k){return (+S.saved[k]||0)+(+((S.initial||{})[k])||0);}
+
 /* 满档溢出后的实际投入 */
 function effAlloc(){
   const base={};LEVEL_KEYS.forEach(k=>base[k]=S.alloc[k]||0);
@@ -407,7 +411,7 @@ function effAlloc(){
   const out={};let pool=LEVEL_KEYS.reduce((s,k)=>s+base[k],0);
   for(const k of LEVEL_KEYS){
     const lv=LEVELS.find(x=>x.k===k);
-    const gap=Math.max(0,lv.target-(S.saved[k]||0));
+    const gap=Math.max(0,lv.target-savedOf(k));
     if(gap<=0){out[k]=0;continue;}
     const give=Math.min(base[k],gap,pool);out[k]=give;pool-=give;
   }
@@ -536,6 +540,8 @@ function dreamEta(d){
 }
 
 /* ---- 状态初始化 ---- */
+const REMOTE_OK=()=>location.protocol.startsWith('http')&&!/github\.io$|^file:/.test(location.protocol+location.hostname);
+let bootDone=false, pendingSync=false;
 let S=load();
 bootRemote();
 function normalize(s){
@@ -551,6 +557,7 @@ function normalize(s){
   if(!s.tags||!s.tags.length)s.tags=defState().tags;
   if(!s.alloc)s.alloc={...BASE};
   if(!s.saved)s.saved={L1:0,L2:0,L3:0,LG:0};
+  if(!s.initial)s.initial={L1:0,L2:0,L3:0,LG:0};
   if(!s.open)s.open={};
   if(!s.fixOpen)s.fixOpen={};
   if(!s.templates)s.templates=[];
@@ -570,20 +577,42 @@ function load(){
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} syncRemote();}
 
 /* ---- 远程同步（可选：Neon/Postgres 后端，由 Render 托管） ---- */
-const REMOTE_OK=()=>location.protocol.startsWith('http')&&!/github\.io$|^file:/.test(location.protocol+location.hostname);
 async function syncRemote(){
   if(!REMOTE_OK())return;
+  if(!bootDone){ pendingSync=true; return; }
   try{
-    await fetch('/api/state',{method:'POST',headers:{'content-type':'application/json'},
+    const res=await fetch('/api/state',{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({data:S})});
-  }catch(e){/* 离线或无后端时静默回退 localStorage */}
+    if(!res.ok){ console.warn('[sync] 保存远程状态失败：',res.status); pendingSync=true; return; }
+    pendingSync=false;
+  }catch(e){ console.warn('[sync] 保存远程状态失败（网络/后端不可用）：',e&&e.message||e); pendingSync=true; }
 }
 async function bootRemote(){
-  if(!REMOTE_OK())return;
+  if(!REMOTE_OK()){ bootDone=true; return; }
+  let j=null;
   try{
-    const j=await (await fetch('/api/state')).json();
-    if(j&&j.data){S=normalize(j.data);render();}
-  }catch(e){}
+    const get=async()=>{ const r=await fetch('/api/state'); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
+    try{ j=await get(); }
+    catch(e){
+      /* Render 免费版闲置后首次访问会冷启动（503），稍等再试一次 */
+      await new Promise(r=>setTimeout(r,1500));
+      j=await get();
+    }
+    if(j&&j.data){ S=normalize(j.data); render(); }
+    /* 云端还是空的、但本机有货 → 把本机这份传上去（手机先开就自动上云，电脑再开就能看到） */
+    else if(j&&!j.data&&hasLocalData()){ pendingSync=true; }
+  }catch(e){ console.warn('[sync] 读取远程状态失败，沿用本地数据：',e&&e.message||e); }
+  finally{ bootDone=true; if(pendingSync) syncRemote(); }
+}
+/* 本机是否有实质数据：避免空设备把空状态写上去，把有数据的那台覆盖掉 */
+function hasLocalData(){
+  if(+S.salary>0)return true;
+  if(LEVEL_KEYS.some(k=>(+S.saved[k]||0)>0))return true;
+  if((S.initial&&Object.values(S.initial).some(v=>+v>0)))return true;
+  if(Object.keys(S.months||{}).length)return true;
+  if((S.dreams||[]).length)return true;
+  if((S.debts||[]).length)return true;
+  return false;
 }
 
 /* ================= 渲染 ================= */
@@ -721,7 +750,7 @@ function refreshSalViz(){
 
 /* ---------------- 总览 ---------------- */
 function vOverview(){
-  const tot=GOAL_KEYS.reduce((s,k)=>s+(S.saved[k]||0),0);
+  const tot=GOAL_KEYS.reduce((s,k)=>s+savedOf(k),0);
   const pct=Math.min(100,tot/TOTAL_GOAL*100);
   const remain=TOTAL_GOAL-tot;
   const EF=effAlloc();
@@ -731,7 +760,7 @@ function vOverview(){
   const yEnd=isFinite(days)?new Date().getFullYear()+Math.round(days/365):null;
   /* 基准：应分配里本该流向总目标的部分。L1 还没攒满时它那份不进总目标，要剔掉；
      L1 满了会自动溢出给后面，那时就不用剔。 */
-  const l1Full=(S.saved.L1||0)>=LEVELS[0].target;
+  const l1Full=savedOf('L1')>=LEVELS[0].target;
   const baseSum=Math.max(0,(+S.monthly||0)-(l1Full?0:(S.alloc.L1||0)));
   const baseDays=baseSum>0?Math.ceil(remain/(baseSum/DAYS_PER_MONTH)):Infinity;
   const delay=(isFinite(days)&&isFinite(baseDays))?Math.round(days-baseDays):0;
@@ -739,7 +768,13 @@ function vOverview(){
     :delay<=-14?`<span class="pill g" style="margin-left:5px">提前 ${humanDelay(-delay).replace('延长 ','')}</span>`:'';
 
   let h=`
-  <div class="hero">
+  <div class="hero" style="position:relative">
+    <button class="xbtn" onclick="initialSheet()" style="position:absolute;top:12px;right:12px">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+        <ellipse cx="12" cy="6" rx="7" ry="3"/>
+        <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/>
+        <path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>
+    </button>
     <div class="lbl">储蓄总目标</div>
     <div class="big">${money(tot)} <small>/ ${money(TOTAL_GOAL)}</small></div>
     <div class="bar"><i style="width:${pct}%;background:linear-gradient(90deg,#2F6BFF,#5B8CFF,#12B76A)"></i></div>
@@ -752,7 +787,7 @@ function vOverview(){
       ${delayHTML?`<span style="white-space:nowrap">${delayHTML}</span>`:''}
     </div>
     <div class="tiny dim" style="margin-top:6px">L2 + L3 + 长期 = ${money(TOTAL_GOAL)}。
-      L1 波动金 ${money(S.saved.L1||0)}/${money(LEVELS[0].target)} 单独攒，不计入。</div>
+      L1 波动金 ${money(savedOf('L1'))}/${money(LEVELS[0].target)} 单独攒，不计入。</div>
   </div>
   ${salaryCard(EF,sum)}
 
@@ -780,7 +815,8 @@ function vOverview(){
   </div>`;
 
   LEVELS.forEach(lv=>{
-    const sv=S.saved[lv.k]||0, al=S.alloc[lv.k]||0, ef=EF[lv.k]||0;
+    const sv=savedOf(lv.k), al=S.alloc[lv.k]||0, ef=EF[lv.k]||0;
+    const ini=+((S.initial||{})[lv.k])||0;
     const full=sv>=lv.target;
     const p=Math.min(100,sv/lv.target*100);
     const moved=ef-al;
@@ -795,7 +831,7 @@ function vOverview(){
       <div class="desc">${lv.d}</div>
       <div class="bar sm"><i style="width:${p}%;background:${lv.c}"></i></div>
       <div class="between tiny">
-        <span class="dim">${p.toFixed(1)}%</span>
+        <span class="dim">${p.toFixed(1)}%${ini>0?` · 含初始 ${money(ini)}`:''}</span>
         <span class="dim">还差 ${money(Math.max(0,lv.target-sv))}</span>
       </div>
       <div class="foot">
@@ -1033,6 +1069,24 @@ function bindOverview(){
     S.dreams=S.dreams.filter(x=>x.id!=b.dataset.dreamdel);save();render();toast('已删除项目');});
 }
 
+/* 初始金额：按 L1/L2/L3/LG 分档录入，仅记录、不接入任何现有计算（计入规则待确认） */
+function initialSheet(){
+  const init=S.initial||{L1:0,L2:0,L3:0,LG:0};
+  const row=k=>{const lv=LEVELS.find(x=>x.k===k);
+    return `<div class="edli"><i style="background:${lv.c}"></i>
+      <span class="nm">${lv.n}</span>
+      <input type="text" inputmode="decimal" class="imi" data-k="${k}" value="${init[k]||''}" placeholder="0"></div>`;};
+  sheet(`${sheetHead('初始金额')}
+    <div class="tiny dim" style="margin-bottom:11px">开始前你手头已经有的积蓄，按四档分别填。具体怎么计入各档 / 总目标，我之后再和你确认，这里先只负责记下来。</div>
+    ${LEVELS.map(l=>row(l.k)).join('')}
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okIv">保存</button></div>`,()=>{
+    $('#okIv').onclick=()=>{
+      S.initial={};LEVELS.forEach(l=>{const el=document.querySelector('[data-k="'+l.k+'"]');S.initial[l.k]=num(el?el.value:0);});
+      save();closeSheet();toast('初始金额已保存');};
+  });
+}
+
 /* ---------------- 生活费 ---------------- */
 function cloudHTML(){
   const agg={};
@@ -1064,6 +1118,17 @@ function cloudHTML(){
   return h;
 }
 
+/* 标签管理：平时只展示数量，点笔进入编辑（复用底部 tagSheet） */
+function tagManageHTML(){
+  return `<div class="sec"><h2>标签管理</h2><span class="hint">点笔编辑</span></div>
+  <div class="card" style="padding:12px 14px">
+    <div class="between">
+      <span class="tiny muted">${S.tags.length} 个标签</span>
+      <button class="adj" onclick="tagSheet()" title="管理标签">${PEN} 管理</button>
+    </div>
+  </div>`;
+}
+
 /* 自由浮动词云：从中心螺旋找位置，躲开已放好的词 */
 function layoutCloud(){
   const box=document.querySelector('.cloud');if(!box)return;
@@ -1092,6 +1157,7 @@ function vLiving(){
   rebuildCarry();
   const y=yearKey(), cm=parseInt((S.curMonth||curKey()).split('-')[1],10);
   let h=cloudHTML();
+  h+=tagManageHTML();
   h+=`<div class="sec"><h2>生活费 · ${y} 年</h2><span class="hint">点月份展开记账</span></div>`;
   const order=[cm];for(let n=1;n<=12;n++)if(n!==cm)order.push(n);
   for(const m of order){
@@ -1131,7 +1197,8 @@ function monthBody(k,m,mo,C){
   const pool=C.available-fixSum-flexSum;
   const spent=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
   const left=pool-spent;
-  const fixOpen=!!S.fixOpen[k];
+  const li=(n,name,amt,extra)=>`<div class="fixli"><i style="background:${FIXC[n%FIXC.length]}"></i>
+      <span>${esc(name)}</span><b>${money(amt)}${extra||''}</b></div>`;
   let h=`<div class="mbd">`;
   h+=`<div class="fline">
     <span class="fl">${m} 月生活费</span>
@@ -1141,53 +1208,22 @@ function monthBody(k,m,mo,C){
   if(C.carryIn)h+=`<div class="between tiny" style="padding-bottom:2px">
     <span class="dim">上月结转</span>
     <span style="color:${C.carryIn<0?'var(--red)':'var(--green)'}">${C.carryIn<0?'− 欠':'＋ 余'} ${money(Math.abs(C.carryIn))}</span></div>`;
-  h+=`<div class="fold ${fixOpen?'open':''}" data-fix="${k}">
-      <span class="ft">固定开销</span>
-      <span class="fv">${money(fixSum)} · <b class="pct">${pctOf}%</b></span>
-      <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
-    </div>`;
-  if(fixOpen){
-    h+=items.length?items.map((it,i)=>`
-      <div class="li">
-        <span class="tg"><select data-li="${k}" data-i="${i}" data-f="tag">
-          ${S.tags.map(t=>`<option ${t===it.tag?'selected':''}>${esc(t)}</option>`).join('')}
-          ${!S.tags.includes(it.tag)?`<option selected>${esc(it.tag)}</option>`:''}
-          <option value="__new">+ 新标签…</option></select></span>
-        <span class="am"><i>¥</i><input class="money" data-li="${k}" data-i="${i}" data-f="amt"
-          type="number" value="${it.amt}" step="10"></span>
-        <span class="pc">${C.available>0?Math.round((+it.amt||0)/C.available*100):0}%</span>
-        <span class="nt"><input data-li="${k}" data-i="${i}" data-f="note"
-          value="${esc(it.note||'')}" placeholder="备注"></span>
-        <button class="del" data-del="${k}" data-i="${i}">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-      </div>`).join(''):`<div class="empty" style="padding:10px 0">还没有固定开销</div>`;
-    h+=`<div class="chips">
-      ${tagFreq().slice(0,6).map((t,i)=>`<span class="chip c${i%5}" data-addtag="${k}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
-      <span class="chip add" data-newtag="${k}">+ 新标签</span>
-      <span class="chip" data-managetags="${k}">管理标签</span>
-      <span class="chip" data-tpl="${k}">套用模板</span>
-      <span class="chip" data-savetpl="${k}">存为模板</span>
-    </div>`;
-  }
-  /* 浮动开销：独立区块，展开月份就能写，不用先去点开固定开销 */
-  h+=`<div class="fxblock">
-    <div class="bxhead">
-      <span class="tiny" style="color:var(--text);font-weight:660">浮动开销</span>
-      <span class="tiny dim">不固定 · 直接在下面写</span>
-      <b class="money" id="flexSum-${k}" style="margin-left:auto;font-size:13.5px">${money(flexSum)}</b>
-    </div>`;
-  h+=flexList.length?flexList.map((it,i)=>`
-      <div class="flexli"><i class="fd" style="background:${FIXC[i%FIXC.length]}"></i>
-        <input class="fln" data-flexn="${k}" data-i="${i}" value="${esc(it.tag)}" placeholder="名目">
-        <span class="am"><em>¥</em><input class="money" data-flexamt="${k}" data-i="${i}"
-          type="number" value="${it.amt||''}" placeholder="0" step="10"></span>
-        <button class="del" data-flexdel="${k}" data-i="${i}">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`).join('')
-    :`<div class="tiny dim" style="padding:3px 0 1px">这个月还没有。人情、看病、修车这类不固定的，点下面加。</div>`;
-  h+=`<div class="chips" style="margin-top:7px">
-      ${FLEXTAGS.slice(0,5).map((t,i)=>`<span class="chip c${i%5}" data-addflex="${k}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
-      <span class="chip add" data-addflexnew="${k}">+ 新名目</span>
-    </div></div>`;
+  h+=`<div class="flow minus" data-fx="fix">
+      <span class="fn">固定开销</span>
+      <span class="fv">−${money(fixSum)}</span><span class="fp">${pctOf}%</span>
+      <span class="fg"><button class="adj" onclick="fixEditSheet('${k}','fix')" title="编辑固定开销">${PEN}</button></span>
+    </div>
+    <div class="sub" style="display:block">${items.length?items.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+      .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>点上面 ✏ 一次性填进去</span></div>`}</div>`;
+  h+=`<div class="flow minus" data-fx="flex" style="margin-top:8px">
+      <span class="fn">浮动开销</span>
+      <span class="fv">−${money(flexSum)}</span><span class="fp">${C.available>0?Math.round(flexSum/C.available*100):0}%</span>
+      <span class="fg"><button class="adj" onclick="fixEditSheet('${k}','flex')" title="编辑浮动开销">${PEN}</button></span>
+    </div>
+    <div class="sub" style="display:block">${flexList.length?flexList.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+      .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>人情、看病、修车…点 ✏ 写进去</span></div>`}</div>`;
   h+=`<div class="fline wkline" style="padding-top:11px;border-top:1px dashed var(--line);margin-top:8px">
       <span class="fl">${left<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${left<0?'style="color:var(--red)"':''}>${left<0?money(-left):money(left)}</b></span>
       <span class="tiny dim">/ 实际 <b class="money">${money(spent)}</b>
@@ -1265,68 +1301,12 @@ function bindLiving(){
     const k=y+'-'+pad(el.dataset.m);
     if(!S.open[k]){
       Object.keys(S.open).forEach(x=>S.open[x]=false);
-      S.open[k]=true;S.fixOpen[k]=true;pendingScroll=el.dataset.m;
+      S.open[k]=true;pendingScroll=el.dataset.m;
     }else S.open[k]=false;
     save();render();
   });
-  document.querySelectorAll('[data-fix]').forEach(el=>el.onclick=e=>{
-    e.stopPropagation();const k=el.dataset.fix;
-    S.fixOpen[k]=!S.fixOpen[k];save();render();});
   document.querySelectorAll('.mTotal').forEach(el=>el.oninput=()=>{
     getMonth(el.dataset.m).total=num(el.value);save();renderKeep();});
-  document.querySelectorAll('[data-li]').forEach(el=>{
-    el.onchange=()=>{
-      const k=el.dataset.li,i=+el.dataset.i,f=el.dataset.f,mo=getMonth(k);
-      if(f==='tag'&&el.value==='__new'){
-        const v=prompt('新标签名称');if(!v)return render();
-        if(!S.tags.includes(v))S.tags.push(v);
-        mo.items[i].tag=v;save();render();return;}
-      mo.items[i][f]=f==='amt'?num(el.value):el.value;save();renderKeep();};
-  });
-  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
-    e.stopPropagation();const mo=getMonth(b.dataset.del);
-    mo.items.splice(+b.dataset.i,1);save();render();});
-  document.querySelectorAll('[data-flexdel]').forEach(b=>b.onclick=e=>{
-    e.stopPropagation();const mo=getMonth(b.dataset.flexdel);
-    mo.flex=mo.flex||[];mo.flex.splice(+b.dataset.i,1);save();render();});
-  document.querySelectorAll('[data-flexn]').forEach(el=>el.oninput=()=>{
-    const mo=getMonth(el.dataset.flexn);mo.flex=mo.flex||[];
-    if(mo.flex[+el.dataset.i])mo.flex[+el.dataset.i].tag=el.value;save();});
-  document.querySelectorAll('[data-flexamt]').forEach(el=>el.oninput=()=>{
-    const mo=getMonth(el.dataset.flexamt);mo.flex=mo.flex||[];
-    if(mo.flex[+el.dataset.i])mo.flex[+el.dataset.i].amt=num(el.value);
-    save();renderKeep();});
-  document.querySelectorAll('[data-addflex]').forEach(b=>b.onclick=()=>{
-    const mo=getMonth(b.dataset.addflex);mo.flex=mo.flex||[];
-    if(mo.flex.length>=8)return toast('最多 8 项，删掉再加');
-    mo.flex.push({tag:b.dataset.t,amt:0,note:''});save();render();});
-  document.querySelectorAll('[data-addflexnew]').forEach(b=>b.onclick=()=>{
-    const v=prompt('开销名目','人情');if(!v||!v.trim())return;
-    const mo=getMonth(b.dataset.addflexnew);mo.flex=mo.flex||[];
-    if(mo.flex.length>=8)return toast('最多 8 项，删掉再加');
-    mo.flex.push({tag:v.trim(),amt:0,note:''});save();render();toast('已加 '+v.trim());});
-  document.querySelectorAll('[data-addtag]').forEach(b=>b.onclick=()=>{
-    const mo=getMonth(b.dataset.addtag);
-    mo.items=mo.items||[];mo.items.push({tag:b.dataset.t,amt:0,note:''});save();render();});
-  document.querySelectorAll('[data-newtag]').forEach(b=>b.onclick=()=>{
-    const v=prompt('新标签名称');if(!v)return;
-    if(!S.tags.includes(v))S.tags.push(v);
-    const mo=getMonth(b.dataset.newtag);
-    mo.items=mo.items||[];mo.items.push({tag:v,amt:0,note:''});save();render();toast('已加标签 '+v);});
-  document.querySelectorAll('[data-savetpl]').forEach(b=>b.onclick=()=>{
-    const mo=getMonth(b.dataset.savetpl);
-    if(!(mo.items||[]).length)return toast('这个月还没有明细');
-    const n=prompt('模板名称','固定开销');if(!n)return;
-    S.templates.push({name:n,items:mo.items.map(i=>({...i}))});save();toast('模板已保存');});
-  document.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>{
-    if(!S.templates.length)return toast('还没有模板');
-    const names=S.templates.map(t=>t.name+'（'+t.items.length+' 项）');
-    const picked=prompt('套用哪个模板？\n'+names.map((n,i)=>(i+1)+'. '+n).join('\n'),'1');
-    if(!picked)return;
-    const t=S.templates[+picked-1];if(!t)return toast('没有这个模板');
-    const mo=getMonth(b.dataset.tpl);
-    if((mo.items||[]).length&&!confirm('套用模板会覆盖这个月现有的固定开销明细，继续？'))return;
-    mo.items=t.items.map(i=>({...i}));save();render();toast('已套用模板');});
   document.querySelectorAll('.wkSel').forEach(el=>el.onchange=()=>{
     getMonth(el.dataset.wk).weeks=+el.value;save();render();});
   document.querySelectorAll('[data-wd]').forEach(el=>el.oninput=()=>{
@@ -1339,8 +1319,6 @@ function bindLiving(){
     e.stopPropagation();reportSheet(y+'-'+pad(el.dataset.cpy));});
   document.querySelectorAll('[data-wadj]').forEach(el=>el.onclick=e=>{
     e.stopPropagation();weekSheet(el.dataset.wadj);});
-  document.querySelectorAll('[data-managetags]').forEach(el=>el.onclick=e=>{
-    e.stopPropagation();tagSheet(el.dataset.managetags);});
   document.querySelectorAll('[data-cw]').forEach(el=>el.onclick=()=>toast(
     el.dataset.cw+'：'+money(+el.dataset.amt)+' · '+el.dataset.n+' 次'));
   const ad=$('#addDebt');
@@ -1390,10 +1368,14 @@ function renderKeep(){
     const h=mb.querySelector('.mh .msum');
     if(h)h.innerHTML=`已花 <b>${money(C.spent)}</b> · ${C.balance<0
       ?`<span style="color:var(--red)">超支 ${money(-C.balance)}</span>`:`结余 <b>${money(C.balance)}</b>`}`;
-    const fv=mb.querySelector('.fold .fv');
-    if(fv)fv.innerHTML=`${money(fixSum)} · <b class="pct">${C.available>0?Math.round(fixSum/C.available*100):0}%</b>`;
-    const fs=mb.querySelector('[id^="flexSum"]');
-    if(fs)fs.textContent=money(flexSum);
+    const fx=mb.querySelector('.flow.minus[data-fx="fix"]');
+    if(fx){const f=fx.querySelector('.fv'),p=fx.querySelector('.fp');
+      if(f)f.textContent='−'+money(fixSum);
+      if(p)p.textContent=(C.available>0?Math.round(fixSum/C.available*100):0)+'%';}
+    const flx=mb.querySelector('.flow.minus[data-fx="flex"]');
+    if(flx){const f=flx.querySelector('.fv'),p=flx.querySelector('.fp');
+      if(f)f.textContent='−'+money(flexSum);
+      if(p)p.textContent=(C.available>0?Math.round(flexSum/C.available*100):0)+'%';}
     const pool=C.available-fixSum-flexSum;
     const sp=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
     const fl=mb.querySelector('.wkline');
@@ -1643,6 +1625,7 @@ function vCalc(){
         <button class="btn ${written?'':'primary'}" id="applyLive" style="flex:1">写入生活费</button>
         <button class="btn" id="bookSave" ${(S.booked||{})[mk]?'style="opacity:.5"':''}>${
           (S.booked||{})[mk]?m+' 月已入账':'存入 '+m+' 月'}</button>
+        <button class="btn" id="adjMonth">调整本月</button>
       </div>
     </div>
 
@@ -1848,6 +1831,36 @@ function fixEditSheet(k,kind){
   });
 }
 
+/* 调整本月：这个月实际花少了，把多出来的钱加进储蓄（L1~LG 已攒），手动微调 */
+function adjustSheet(){
+  const mk=calcKey(),m=parseInt(mk.split('-')[1],10);
+  const draw=()=>{
+    const box=$('#adjRows');if(!box)return;
+    box.innerHTML=LEVELS.map(l=>`
+      <div class="arow" style="--accentC:${l.c}">
+        <div class="between" style="margin-bottom:6px">
+          <span class="tiny"><span class="dot" style="background:${l.c};margin-right:5px"></span>${l.n}</span>
+          <span class="tiny"><b class="money" style="font-size:13.5px">已攒 ${money(savedOf(l.k))}</b></span>
+        </div>
+        <div class="between tiny" style="margin-top:2px">
+          <span class="dim">本月再攒</span>
+          <input type="text" inputmode="decimal" class="adjIn" data-k="${l.k}" placeholder="0"
+            style="width:110px;text-align:right;padding:6px 9px;font-size:13.5px"></div>
+      </div>`).join('');
+  };
+  sheet(`${sheetHead('调整 · '+m+' 月储蓄')}
+    <div class="tiny dim" style="margin-bottom:11px">这个月实际花少了，就把多出来的钱加进储蓄。各档填「本月再攒」多少，确认后累加到已攒。</div>
+    <div id="adjRows"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okAdj">确认调整</button></div>`,()=>{
+    draw();
+    $('#okAdj').onclick=()=>{
+      LEVELS.forEach(l=>{const el=document.querySelector('[data-k="'+l.k+'"]');const v=num(el?el.value:0);
+        if(v>0)S.saved[l.k]=(S.saved[l.k]||0)+v;});
+      save();closeSheet();render();toast('已调整本月储蓄');};
+  });
+}
+
 function bindCalc(){
   const mk=calcKey();
   const cs=$('#calcSal');
@@ -1880,6 +1893,7 @@ function bindCalc(){
     S.dreams.forEach(d=>{if(+d.monthly>0)d.saved=(d.saved||0)+(+d.monthly||0);});
     S.booked[ck]=true;
     save();render();toast('本月实投已入账');};
+  const am=$('#adjMonth');if(am)am.onclick=()=>adjustSheet();
   document.querySelectorAll('[data-cwk]').forEach(b=>b.onclick=()=>{
     const mk=calcKey();
     sheet(`${sheetHead('生活费分几周')}
