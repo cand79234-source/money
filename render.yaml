@@ -1,0 +1,19 @@
+# Render 部署配置（Infrastructure as Code）
+# 用法：在 Render 控制台 "Blueprint" 中关联本仓库，或手动新建 Web Service 指向本仓库。
+services:
+  - type: web
+    name: savings-plan
+    runtime: node
+    plan: free
+    region: singapore          # 离中国大陆最近；可改 oregon / frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL      # 填入 Neon 的连接串；在 Render 控制台标记为 Secret
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"

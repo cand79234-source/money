@@ -1,0 +1,19 @@
+{
+  "name": "攒钱计划",
+  "short_name": "攒钱计划",
+  "description": "移动端储蓄与攒钱规划工具",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F1F3F8",
+  "theme_color": "#2F6BFF",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "categories": ["finance", "productivity"],
+  "display_override": ["standalone", "fullscreen"]
+}

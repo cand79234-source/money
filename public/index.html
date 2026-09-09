@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#2F6BFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>攒钱计划 v3</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#F1F3F8; --surface:#FFFFFF; --surface2:#F6F7FB; --line:#E4E8F0;
+  --text:#151A23; --muted:#5B6474; --dim:#828B9B;
+  --green:#0F9D58; --red:#DC3B41; --blue:#2F6BFF;
+  --l1:#0284C7; --l2:#0D9488; --l3:#D97B06; --lg:#7C4DEE; --dream:#DB2777;
+}
+html,body{margin:0;padding:0;background:#E9EDF4;color:var(--text);
+  font-family:system-ui,-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{display:flex;justify-content:center;min-height:100vh}
+.phone{width:100%;max-width:430px;background:var(--bg);min-height:100vh;
+  position:relative;display:flex;flex-direction:column;
+  box-shadow:0 0 44px rgba(16,24,40,.10)}
+main{flex:1;overflow-y:auto;padding:14px 14px 110px;-webkit-overflow-scrolling:touch}
+main::-webkit-scrollbar{width:0}
+
+.card{background:#FFFFFF;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.03)}
+.sec{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 0}
+.sec h2{margin:0;font-size:14.5px;font-weight:640}
+.sec .hint{font-size:11.5px;color:var(--dim)}
+.tiny{font-size:11.5px} .muted{color:var(--muted)} .dim{color:var(--dim)}
+.row{display:flex;align-items:center;gap:8px}
+.between{display:flex;align-items:center;justify-content:space-between}
+.money{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.btn{background:#FFFFFF;border:1px solid var(--line);color:var(--text);
+  border-radius:10px;padding:8px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(135deg,#2F6BFF,#5B8CFF);border-color:transparent;
+  font-weight:600;color:#fff;box-shadow:0 2px 8px rgba(47,107,255,.28)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 9px;font-size:12px;border-radius:8px}
+.btn.danger{color:var(--red);border-color:rgba(220,59,65,.35)}
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--text);
+  background:#FFFFFF;border:1px solid var(--line);border-radius:10px;padding:9px 11px;outline:none;width:100%}
+input:focus,select:focus{border-color:#3B6BD6}
+input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;padding:0;border:none;background:#E7EBF2}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:4px solid var(--accentC,#2F6BFF);cursor:pointer;box-shadow:0 1px 4px rgba(16,24,40,.22)}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.pill{font-size:10.5px;padding:2px 7px;border-radius:6px;background:rgba(16,24,40,.055);color:var(--muted)}
+.pill.salpct,.pill.salpctd{background:rgba(47,107,255,.10);color:#2F6BFF;font-weight:700}
+.pill.g{background:rgba(15,157,88,.12);color:var(--green)}
+.pill.r{background:rgba(220,59,65,.12);color:var(--red)}
+
+/* ---- hero ---- */
+.hero{margin-top:6px;border-radius:20px;padding:18px;border:1px solid #D9E2F8;
+  background:linear-gradient(135deg,#E7EEFF 0%,#F4F7FF 62%);
+  box-shadow:0 2px 12px rgba(47,107,255,.07)}
+.hero .lbl{font-size:12px;color:var(--muted);letter-spacing:.5px}
+.hero .big{font-size:33px;font-weight:700;margin:5px 0 2px;letter-spacing:-.5px}
+.hero .big small{font-size:15px;font-weight:500;color:var(--dim)}
+.bar{height:10px;border-radius:6px;background:#ECEFF5;overflow:hidden;margin:13px 0 7px;
+  border:1px solid rgba(16,24,40,.04)}
+.bar > i{display:block;height:100%;border-radius:6px;transition:width .5s cubic-bezier(.22,1,.36,1)}
+.bar.sm{height:6px;margin:8px 0 6px}
+
+/* ---- 薪资占比 ---- */
+.split{display:flex;height:13px;border-radius:7px;overflow:hidden;margin:11px 0 9px;background:#ECEFF5}
+.split i{display:block;height:100%;transition:width .4s}
+/* 圆点/金额/百分比都不许被压缩，放不下就整块换行，绝不叠到隔壁圆点上 */
+.legend{display:flex;flex-wrap:wrap;gap:5px 10px;margin-top:4px}
+.legend span{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;
+  flex:0 0 auto;max-width:100%;white-space:nowrap}
+.legend span i{flex:0 0 auto;margin-right:0}
+.legend span b.money{flex:0 0 auto;font-size:11.5px}
+.legend span b.pct{flex:0 0 auto;margin-left:0}
+/* 百分比：加粗 + 上色，别再是浅灰小字 */
+.pct{font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums}
+/* 下面这些选择器比 .pct 更具体，得单独顶回去 */
+.legend span b.pct{font-weight:700}
+.sub .si b.pct,.fold .fv b.pct{color:var(--blue);font-weight:700}
+.al b{color:var(--blue);font-weight:700}
+.legend span i{width:8px;height:8px;border-radius:3px;flex:0 0 auto}
+.legend span b{color:var(--text);font-weight:620}
+.arow{margin-bottom:13px}
+.arow .dot{display:inline-block;vertical-align:middle}
+
+/* ---- 级别卡 ---- */
+.lv{background:#FFFFFF;border:1px solid var(--line);border-radius:16px;padding:13px;margin-top:10px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.03)}
+.lv .head{display:flex;align-items:center;gap:7px}
+.lv .name{font-weight:640;font-size:14.5px}
+.lv .amt{font-size:13px;color:var(--muted);margin-left:auto}
+.lv .desc{font-size:11.5px;color:var(--dim);margin:4px 0 0}
+.lv .foot{display:flex;align-items:center;gap:10px;margin-top:10px;
+  padding-top:10px;border-top:1px dashed var(--line)}
+.lv .foot .setlbl{font-size:12.5px;color:var(--muted);flex:1;min-width:0}
+.lv .foot .setlbl b{color:var(--text);font-size:14px}
+.adj{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:9px;
+  padding:5px 9px;font-size:12.5px;color:var(--muted);background:#F8FAFD;cursor:pointer;font-family:inherit}
+.adj:active{background:#EFF3FA}
+
+/* ---- 梦想 ---- */
+.dream{border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:9px;background:#FBFCFE}
+.dream .nm{font-weight:620;font-size:14px}
+.track{position:relative;height:8px;border-radius:5px;background:#ECEFF5;margin:11px 0 15px;overflow:visible}
+.track .fill{position:absolute;top:0;height:100%;border-radius:5px;background:var(--dream);opacity:.5;transition:width .5s}
+.track .mark{position:absolute;top:-4px;width:2px;height:16px;background:#151A23;border-radius:2px;opacity:.7}
+.track .now{position:absolute;top:-7px;width:10px;height:22px;border-radius:3px;
+  background:var(--dream);box-shadow:0 0 0 2px #FFFFFF;transition:left .5s}
+
+/* ---- 月份模块 ---- */
+.mb{background:#FFFFFF;border:1px solid var(--line);border-radius:14px;margin-top:9px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.mb.on{border-color:#C7D7FF;box-shadow:0 2px 12px rgba(47,107,255,.10)}
+.mh{display:flex;align-items:center;gap:9px;padding:13px;cursor:pointer}
+.mh .mm{font-size:15px;font-weight:660;min-width:34px}
+.mh .msum{flex:1;font-size:11.5px;color:var(--dim);text-align:right;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mh .msum b{color:var(--muted);font-weight:600}
+.caret{width:16px;height:16px;flex:0 0 auto;color:var(--dim);transition:transform .22s}
+.mb.on > .mh .caret{transform:rotate(180deg);color:var(--blue)}
+.cpy{width:22px;height:22px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  color:var(--dim);border:1px solid var(--line);border-radius:7px;background:#F8FAFC}
+.cpy:active{background:#EDF1F8;color:var(--blue)}
+.mbd{padding:0 13px 13px;border-top:1px solid var(--line)}
+.mbd .fline{display:flex;align-items:center;gap:8px;padding:11px 0 4px}
+.mbd .fline .fl{font-size:13px;font-weight:600}
+.mbd .fline input{flex:1;text-align:right;padding:7px 10px}
+.fold{display:flex;align-items:center;gap:7px;padding:10px 0 0;cursor:pointer}
+.fold .ft{font-size:13px;font-weight:600}
+.fold .fv{font-size:12px;color:var(--muted);margin-left:auto}
+.fold .caret{width:14px;height:14px}
+.fold.open .caret{transform:rotate(180deg)}
+
+/* ---- 明细行 ---- */
+.li{display:flex;align-items:center;gap:6px;padding:6px 0}
+.li .tg{flex:0 0 auto;max-width:98px}
+.li .tg select{padding:6px 6px;font-size:12.5px;background:#F4F7FC;border-radius:8px;
+  border:1px solid transparent;color:var(--text)}
+.li .am{position:relative;width:86px;flex:0 0 auto}
+.li .am i{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-style:normal;
+  font-size:12px;color:var(--dim);pointer-events:none}
+.li .am input{padding:7px 8px 7px 21px;font-size:13px;text-align:right}
+.li .pc{width:34px;flex:0 0 auto;font-size:10.5px;font-weight:700;color:var(--blue);text-align:right;
+  font-variant-numeric:tabular-nums}
+.li .nt{flex:1;min-width:0}
+.li .nt input{padding:7px 9px;font-size:12.5px}
+.del{width:24px;height:24px;flex:0 0 auto;border:none;background:#F1F3F8;border-radius:7px;
+  color:var(--dim);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.del:active{background:#E6E9F0}
+
+/* ---- chips ---- */
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 2px}
+.chip{border:1px solid #DDE2EA;background:#FFFFFF;border-radius:8px;padding:5px 10px;
+  font-size:12.5px;color:#374151;cursor:pointer;white-space:nowrap;border-left-width:3px}
+.chip:active{background:#F2F5F9}
+.chip.add{border-style:dashed;border-left-width:1px;color:var(--blue);background:#FAFCFF}
+.chip.c0{border-left-color:#2563EB}
+.chip.c1{border-left-color:#0F766E}
+.chip.c2{border-left-color:#B45309}
+.chip.c3{border-left-color:#6D28D9}
+.chip.c4{border-left-color:#BE123C}
+.tagx{margin-left:5px;color:var(--dim);font-size:13px;line-height:1;padding:2px 3px;cursor:pointer}
+.tagx:active{color:var(--red)}
+
+/* ---- 周 ---- */
+.wk{display:flex;align-items:center;gap:7px;padding:6px 0}
+.wk .wl{width:64px;flex:0 0 auto}
+.wk .wl b{display:block;font-size:12.5px;font-weight:600}
+.wk .wl em{display:block;font-style:normal;font-size:10px;color:var(--dim);margin-top:1px}
+.wk input.spent{width:80px;flex:0 0 auto;padding:7px 8px;font-size:13px;text-align:right}
+.wk input.desc{flex:1;min-width:0;padding:7px 9px;font-size:12.5px}
+
+/* ---- 词云 ---- */
+.cloud{position:relative;overflow:hidden;padding:4px 2px 2px}
+.cw{position:absolute;white-space:nowrap;cursor:pointer;line-height:1.1;font-weight:600;
+  will-change:transform;animation:flt 7s ease-in-out infinite;transition:opacity .15s}
+.cw:active{opacity:.5}
+@keyframes flt{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-6px)}}
+.cloudTip{font-size:11px;color:var(--dim);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+
+/* ---- 分析 ---- */
+.ana{background:#F8FAFC;border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-top:10px}
+.ana .al{display:flex;gap:8px;font-size:12px;color:var(--muted);margin-bottom:7px;line-height:1.45}
+.ana .al:last-child{margin-bottom:0}
+.ana .al i{width:6px;height:6px;border-radius:50%;margin-top:6px;flex:0 0 auto;background:var(--dim)}
+.ana .al.good i{background:var(--green)}
+.ana .al.warn i{background:#D97706}
+.ana .al.bad i{background:var(--red)}
+.ana .al b{color:var(--blue);font-weight:700}
+
+/* ---- 计算页 ---- */
+.flow{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.flow .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flow .fv{font-variant-numeric:tabular-nums;font-weight:600}
+.flow .fp{min-width:46px;width:auto;text-align:right;font-size:11.5px;flex:0 0 auto;
+  font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
+.flow .fg{min-width:40px;width:auto;flex:0 0 auto;text-align:right}
+.flow.minus .fv{color:var(--red)}
+.flow.total{border-bottom:none;border-top:2px solid var(--line);margin-top:4px;padding-top:12px;font-size:15px}
+.flow.total .fn{font-weight:700}
+.flow.total .fv{font-weight:700;font-size:17px}
+.sub{background:#F8FAFC;border-radius:10px;padding:2px 10px;margin:6px 0}
+.sub .si{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:5px 0}
+.sub .si b{color:var(--text);font-weight:600}
+.flow.hl{background:#F1F5FB;border-radius:10px;padding:9px 10px;border-bottom:none;margin-top:9px}
+.flow.hl .fn{color:var(--text);font-weight:620}
+/* 圆点 名称 价格 */
+.fixli{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding:4px 0}
+.fixli:not(:last-child){border-bottom:1px solid rgba(148,163,184,.18)}
+.fixli i{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.fixli span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fixli b{color:var(--text);font-weight:620;font-family:var(--mono)}
+/* 浮动开销：独立区块，展开月份就能看见 */
+.fxblock{margin-top:11px;padding:10px 11px 11px;border:1px solid var(--line);border-radius:12px;
+  background:#FCFDFF}
+.fxblock .bxhead{display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:nowrap}
+.fxblock .bxhead .tiny{white-space:nowrap}
+/* 圆点 + 名目 + 金额 + 删，可直接写 */
+.flexli{display:flex;align-items:center;gap:7px;padding:5px 0;font-size:13px}
+.flexli:not(:last-child){border-bottom:1px solid rgba(148,163,184,.18)}
+.flexli > i.fd{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.flexli .fln{flex:1;min-width:0;padding:6px 8px;font-size:13px;font-weight:600;
+  border:1px solid var(--line);border-radius:8px;background:#F8FAFD;color:var(--text)}
+.flexli .am{flex:0 0 auto;display:flex;align-items:center;gap:3px}
+.flexli .am em{font-style:normal;color:var(--dim);font-size:12px}
+.flexli .am input{width:76px;flex:0 0 auto;text-align:right;padding:6px 7px;font-size:13px}
+/* 弹窗里可编辑的「点 + 名称 + 钱」 */
+.edli{display:flex;align-items:center;gap:9px;padding:7px 0;
+  border-bottom:1px solid rgba(148,163,184,.18)}
+.edli i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.edli .nm{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.edli input{width:92px;flex:0 0 auto;text-align:right;padding:6px 9px;font-size:13.5px}
+.edli .pctv{width:38px;flex:0 0 auto;text-align:right;font-size:11.5px}
+.edHead{background:#F1F5FB;border-radius:11px;padding:10px 12px;margin-bottom:12px}
+.edHead .r1{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.edHead .r1 b.big{font-size:21px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.edTail{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
+.edTail .r{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;
+  color:var(--muted);padding:3px 0}
+.edTail .r b{color:var(--text);font-weight:650;font-variant-numeric:tabular-nums}
+.edTail .r.last b{font-size:16px;font-weight:700;color:var(--green)}
+/* 梦想 foot 与 L1~L4 一样，同一行不折行 */
+.dream .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);flex-wrap:nowrap}
+.dream .foot .setlbl{font-size:12.5px;color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.dream .foot .setlbl b{color:var(--text);font-size:14px}
+.dream .foot .adj{flex:0 0 auto}
+.lv .foot{flex-wrap:nowrap}
+.lv .foot .adj{flex:0 0 auto}
+.lv .foot .setlbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.want{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px}
+.want .wn{flex:1;min-width:0}
+.want input{width:84px;flex:0 0 auto;text-align:right;padding:6px 8px;font-size:13px}
+.want .wv{width:76px;flex:0 0 auto;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
+
+/* ---- 债务 ---- */
+.debt{padding:10px 0}
+.debt + .debt{border-top:1px dashed var(--line)}
+.dbars{height:7px;border-radius:4px;background:#ECEFF5;overflow:hidden;margin:7px 0 6px}
+.dbars i{display:block;height:100%;background:linear-gradient(90deg,#DC3B41,#F59E0B);border-radius:4px}
+
+/* ---- tabbar ---- */
+.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;
+  display:flex;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line);
+  padding:7px 0 max(7px,env(safe-area-inset-bottom));z-index:40;
+  box-shadow:0 -1px 10px rgba(16,24,40,.05)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;
+  cursor:pointer;color:var(--dim);font-size:10.5px;background:none;border:none;font-family:inherit}
+.tab.on{color:var(--blue)}
+.tab svg{width:21px;height:21px}
+
+/* ---- 弹层 ---- */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:60;display:none;
+  align-items:flex-end;justify-content:center}
+.mask.on{display:flex}
+.sheet{width:100%;max-width:430px;background:#FFFFFF;border-radius:20px 20px 0 0;
+  padding:16px 16px calc(20px + env(safe-area-inset-bottom));animation:up .22s ease}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sh h3{margin:0;font-size:16px;font-weight:650}
+.xbtn{width:30px;height:30px;border:1px solid var(--line);background:#F7F9FC;border-radius:9px;
+  color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.fld{margin-bottom:11px}
+.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.f2{display:flex;gap:10px}
+.f2 .fld{flex:1}
+.sheet .btns{display:flex;gap:10px;margin-top:14px}
+.sheet .btns .btn{flex:1;padding:11px}
+.bignum{text-align:center;font-size:32px;font-weight:700;margin:6px 0 14px;letter-spacing:-.5px}
+.bignum small{font-size:16px;color:var(--dim);font-weight:500}
+.empty{text-align:center;color:var(--dim);font-size:12.5px;padding:16px 0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:88px;background:#1B2130;
+  border:none;color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;z-index:80;
+  opacity:0;transition:.25s;pointer-events:none;max-width:80%;text-align:center}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="phone">
+  <main id="main"></main>
+  <nav class="tabbar">
+    <button class="tab on" data-v="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+      总览</button>
+    <button class="tab" data-v="living">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+      生活费</button>
+    <button class="tab" data-v="calc">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      计算</button>
+  </nav>
+</div>
+<div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 常量 ================= */
+const KEY='cuanqian.v8';
+const LEVELS=[
+  {k:'L1', n:'L1 波动金',   d:'低风险 · 衣柜添衣、家电坏了、临时想买 · 要攒但不计入总目标', target:2000,   c:'#0284C7'},
+  {k:'L2', n:'L2 失业保底', d:'中风险 · 失业后约 6 个月薪资的安全垫',   target:20000,  c:'#0D9488'},
+  {k:'L3', n:'L3 紧急医疗', d:'中高风险 · 家人住院、手术急需用钱',      target:30000,  c:'#D97B06'},
+  {k:'LG', n:'长期存储',    d:'基本不动 · 真正的积蓄',                  target:450000, c:'#7C4DEE'}
+];
+const LEVEL_KEYS=LEVELS.map(l=>l.k);
+/* 总目标只算 L2+L3+长期（2万+3万+45万=50万）；L1 波动金照样攒，但不占总目标额度 */
+const BASE={L1:300,L2:900,L3:400,LG:400};
+const GOAL_KEYS=['L2','L3','LG'];
+const TOTAL_GOAL=500000;
+const DAYS_PER_MONTH=30.44;
+const WEEK_OPTS=[1,2,3,4,5];
+
+/* 首次打开时的示例账目：上个月 + 本月，让词云和月份模块有东西可看 */
+/* 示例月份数据（index8 起不再使用，留着只是万一想看样例） */
+function defMonths_unused(){
+  const d=new Date(), y=d.getFullYear(), m=d.getMonth()+1;
+  const pm=m===1?12:m-1, py=m===1?y-1:y;
+  const o={};
+  o[py+'-'+pad(pm)]={total:2500,weeks:4,items:[
+      {tag:'房租',amt:1200,note:''},{tag:'吃饭',amt:760,note:'外卖居多'},
+      {tag:'交通',amt:210,note:''},{tag:'日用',amt:180,note:'超市'}],
+    wdata:[{spent:180,desc:'周末聚餐'},{spent:140,desc:'电影'},{spent:90,desc:''},{spent:0,desc:''}]};
+  o[y+'-'+pad(m)]={total:2500,weeks:4,items:[
+      {tag:'房租',amt:1200,note:''},{tag:'吃饭',amt:520,note:''}],
+    wdata:[{spent:260,desc:'超市 + 打车'},{spent:0,desc:''},{spent:0,desc:''},{spent:0,desc:''}]};
+  return o;
+}
+
+/* index8 起：开局是干净的，不带任何示例数据。
+   只保留三件「设定」：基准 2000、四档默认配比、满档溢出开着。 */
+const defState=()=>({
+  monthly:2000, alloc:{...BASE}, overflow:true,
+  saved:{L1:0,L2:0,L3:0,LG:0},
+  dreams:[],
+  tags:['房租','吃饭','交通','日用','娱乐','人情','还款'],
+  months:{},           // 没有任何历史月份，用到哪个月现建
+  templates:[],
+  debts:[],
+  salary:0,            // 月薪资
+  wbudget:{},          // 自定义周预算：{ '2026-09':[a,b,c,d] }
+  calcM:0,             // 计算页选中的月份（只存 1~12，不存年份）
+  booked:{},           // 已入账的月份：{ '2026-09':true }
+  open:{}, fixOpen:{},
+  view:'overview', curMonth:null
+});
+
+/* ================= 工具（全部声明完再 load） ================= */
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const money=n=>{n=Math.round(n);return (n<0?'-¥':'¥')+Math.abs(n).toLocaleString('zh-CN');};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function curKey(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1);}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function parseD(s){const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c);}
+function addDays(s,d){const t=parseD(s);t.setDate(t.getDate()+Math.round(d));
+  return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());}
+function diffDays(a,b){return Math.round((parseD(b)-parseD(a))/86400000);}
+function fmtDate(s){const[a,b,c]=s.split('-');return a+'.'+b+'.'+c;}
+function yearKey(){return (S.curMonth||curKey()).split('-')[0];}
+function humanDays(d){d=Math.round(d);
+  if(d<=0)return '已达成';
+  if(d<365)return d+' 天';
+  return Math.floor(d/365)+' 年';}
+/* 比应投慢/快了多少，颗粒度细一点 */
+function humanDelay(d){d=Math.round(d);
+  if(d<30)return '延长 '+d+' 天';
+  if(d<365)return '延长 '+Math.round(d/30.44)+' 个月';
+  return '延长 '+(d/365).toFixed(1)+' 年';}
+/* 数字输入统一去负号，免得填出负储蓄、负开销 */
+function num(v,d){const n=parseFloat(v);return isNaN(n)?(d||0):Math.max(0,n);}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1700);}
+function getMonth(k){if(!S.months[k])S.months[k]={total:0,items:[],flex:[],weeks:4};return S.months[k];}
+
+/* 满档溢出后的实际投入 */
+function effAlloc(){
+  const base={};LEVEL_KEYS.forEach(k=>base[k]=S.alloc[k]||0);
+  if(!S.overflow)return base;
+  const out={};let pool=LEVEL_KEYS.reduce((s,k)=>s+base[k],0);
+  for(const k of LEVEL_KEYS){
+    const lv=LEVELS.find(x=>x.k===k);
+    const gap=Math.max(0,lv.target-(S.saved[k]||0));
+    if(gap<=0){out[k]=0;continue;}
+    const give=Math.min(base[k],gap,pool);out[k]=give;pool-=give;
+  }
+  out.LG=(out.LG||0)+Math.max(0,pool);
+  return out;
+}
+function monthSpent(k){const mo=getMonth(k);
+  return (mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0)
+    +(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0)
+    +(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);}
+function monthCalc(k){const mo=getMonth(k);
+  const carryIn=+mo.carryIn||0,available=(+mo.total||0)+carryIn,spent=monthSpent(k);
+  return{carryIn,available,spent,balance:available-spent};}
+function rebuildCarry(){
+  const y=yearKey();let prev=0;
+  for(let m=1;m<=12;m++){
+    const k=y+'-'+pad(m),mo=S.months[k];
+    const blank=!mo||(!mo.total&&!(mo.items||[]).length&&!(mo.wdata||[]).length&&!(mo.flex||[]).length);
+    if(blank){if(mo)mo.carryIn=prev;continue;}
+    mo.carryIn=prev;prev=monthCalc(k).balance;
+  }
+}
+/* 周预算：默认平分；有自定义就用自定义 */
+function budgetOf(k,pool,wIdx,wk){
+  const c=S.wbudget[k];
+  if(c&&c.length===wk)return Math.max(0,+c[wIdx]||0);
+  return wk>0?pool/wk:0;
+}
+/* 周预算文案：还没填「本月可花」时是「未设预算」，不是超支。
+   pool<=0 一分钱预算都没有，红字吓人且是错的。 */
+function wkBudgetTxt(pool,bud){
+  if(pool<=0)return '<i class="dim">未设预算</i>';
+  return bud>0?'预算 '+money(bud):'<i style="color:var(--red)">已超支</i>';
+}
+function copyText(t){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t);
+    else{const ta=document.createElement('textarea');ta.value=t;
+      ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);
+      ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+    toast('已复制，可以粘贴给 AI 分析');
+  }catch(e){toast('复制失败，请手动选择');}
+}
+/* 标签使用频次，常用的排前面 */
+function tagFreq(){
+  const f={};
+  Object.values(S.months).forEach(m=>
+    [...(m.items||[]),...(m.flex||[])].forEach(it=>{
+      const t=it.tag||'其他';f[t]=(f[t]||0)+1;}));
+  S.tags.forEach(t=>{if(!f[t])f[t]=0;});
+  return Object.entries(f).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+}
+/* 某月的文本报告，用于复制给 AI */
+function monthReport(k){
+  rebuildCarry();
+  const mo=getMonth(k),C=monthCalc(k),m=parseInt(k.split('-')[1],10);
+  const items=mo.items||[];
+  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexList=mo.flex||[];
+  const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
+  const wk=mo.weeks||4;
+  const pool=C.available-fixSum-flexSum;
+  const sal=+S.salary||0;
+  const pc=n=>C.available>0?(n/C.available*100).toFixed(1):'0';
+  const pcs=n=>sal>0?(n/sal*100).toFixed(1):'—';
+  let t=`【${m} 月账目】
+`;
+  t+=`月薪资 ${sal?money(sal):'未填'}
+`;
+  t+=`本月可用 ${money(C.available)}${C.carryIn?`（含上月结转 ${money(C.carryIn)}）`:''}
+`;
+  t+=`固定开销合计 ${money(fixSum)}（占可用 ${pc(fixSum)}%${sal?'，占薪资 '+pcs(fixSum)+'%':''}）
+`;
+  items.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
+    t+=`  - ${i.tag} ${money(+i.amt||0)}（占可用 ${pc(+i.amt||0)}%）${i.note?'  '+i.note:''}
+`;});
+  t+=`浮动开销合计 ${money(flexSum)}（占可用 ${pc(flexSum)}%${sal?'，占薪资 '+pcs(flexSum)+'%':''}）
+`;
+  flexList.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
+    t+=`  - ${i.tag} ${money(+i.amt||0)}（占可用 ${pc(+i.amt||0)}%）${i.note?'  '+i.note:''}
+`;});
+  t+=`周支出合计 ${money((mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0))}（占可用 ${pc((mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0))}%）
+`;
+  (mo.wdata||[]).slice(0,wk).forEach((w,i)=>{
+    t+=`  第${i+1}周 预算 ${money(budgetOf(k,pool,i,wk))} / 实际 ${money(+w.spent||0)}${w.desc?' · '+w.desc:''}
+`;});
+  t+=`结余 ${money(C.balance)}${sal?'（占薪资 '+pcs(C.balance)+'%）':''}
+`;
+  if(S.debts.length){
+    t+=`债务：
+`;
+    S.debts.forEach(d=>{const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
+      t+=`  - ${d.name} 每期 ${money(d.per)}，剩 ${money(Math.max(0,(+d.total||0)-paid))}
+`;});
+  }
+  t+=`
+请帮我分析哪些花销偏高、结构是否合理、怎么优化。`;
+  return t;
+}
+/* 月份旁边的「分析 + 复制」弹窗 */
+function reportSheet(k){
+  const m=parseInt(k.split('-')[1],10);
+  const rows=analyze(k);
+  const txt=monthReport(k);
+  sheet(`${sheetHead(m+' 月 · 系统分析')}
+    <div class="ana" style="margin-top:0">${rows.length?rows.map(([c,t])=>
+      `<div class="al ${c}"><i></i><span>${t}</span></div>`).join('')
+      :'<div class="al"><i></i><span>这个月还没数据</span></div>'}</div>
+    <div class="tiny muted" style="margin:13px 0 6px">下面这段可以直接粘给 AI</div>
+    <textarea id="repTxt" readonly style="width:100%;height:150px;border:1px solid var(--line);
+      border-radius:10px;padding:10px;font-size:11.5px;line-height:1.6;color:var(--muted);
+      background:#F8FAFC;resize:vertical;font-family:inherit">${esc(txt)}</textarea>
+    <div class="btns"><button class="btn" onclick="closeSheet()">关闭</button>
+      <button class="btn primary" id="okRep">复制这段</button></div>`,()=>{
+    $('#okRep').onclick=()=>copyText($('#repTxt').value);
+  });
+}
+function dreamEta(d){
+  const remain=Math.max(0,d.target-(d.saved||0));
+  const pct=Math.min(100,(d.saved||0)/d.target*100);
+  if(remain<=0)return{remain:0,date:todayStr(),delta:0,pct:100};
+  const m=Math.max(0,d.monthly||0);
+  if(m<=0)return{remain,date:null,delta:Infinity,pct};
+  const days=Math.ceil(remain/m*DAYS_PER_MONTH);
+  return{remain,date:addDays(todayStr(),days),delta:diffDays(d.deadline,addDays(todayStr(),days)),pct};
+}
+
+/* ---- 状态初始化 ---- */
+let S=load();
+bootRemote();
+function normalize(s){
+  if(!s.curMonth)s.curMonth=curKey();
+  /* 跨月自动推进：当前月排最前，并自动展开 */
+  if(s.curMonth!==curKey()){
+    const nk=curKey();
+    s.open[nk]=true;s.fixOpen[nk]=true;
+    s.curMonth=nk;
+  }
+  if(!s.months)s.months={};
+  if(!s.debts)s.debts=[];
+  if(!s.tags||!s.tags.length)s.tags=defState().tags;
+  if(!s.alloc)s.alloc={...BASE};
+  if(!s.saved)s.saved={L1:0,L2:0,L3:0,LG:0};
+  if(!s.open)s.open={};
+  if(!s.fixOpen)s.fixOpen={};
+  if(!s.templates)s.templates=[];
+  if(!s.dreams)s.dreams=[];
+  if(!s.wbudget)s.wbudget={};
+  if(!s.booked)s.booked={};
+  if(!s.calcM)s.calcM=parseInt(curKey().split('-')[1],10);
+  if(!Object.keys(s.open).length){s.open[s.curMonth]=true;s.fixOpen[s.curMonth]=true;}
+  if(!s.fixOpen[s.curMonth])s.fixOpen[s.curMonth]=true;
+  return s;
+}
+function load(){
+  let s;
+  try{const r=JSON.parse(localStorage.getItem(KEY));s=r?Object.assign(defState(),r):defState();}catch(e){s=defState();}
+  return normalize(s);
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} syncRemote();}
+
+/* ---- 远程同步（可选：Neon/Postgres 后端，由 Render 托管） ---- */
+const REMOTE_OK=()=>location.protocol.startsWith('http')&&!/github\.io$|^file:/.test(location.protocol+location.hostname);
+async function syncRemote(){
+  if(!REMOTE_OK())return;
+  try{
+    await fetch('/api/state',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({data:S})});
+  }catch(e){/* 离线或无后端时静默回退 localStorage */}
+}
+async function bootRemote(){
+  if(!REMOTE_OK())return;
+  try{
+    const j=await (await fetch('/api/state')).json();
+    if(j&&j.data){S=normalize(j.data);render();}
+  }catch(e){}
+}
+
+/* ================= 渲染 ================= */
+let pendingScroll=null;
+function render(){
+  let v=S.view;   /* 用 let：view 是脏值时下面能改回 overview，不然直接抛错白屏 */
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v===v));
+  const MAP={overview:vOverview,living:vLiving,calc:vCalc};
+  if(!MAP[v]){S.view='overview';save();v='overview';}
+  $('#main').innerHTML=MAP[v]();
+  if(v==='overview')bindOverview();
+  if(v==='living')bindLiving();
+  if(v==='calc')bindCalc();
+  if(pendingScroll&&v==='living'){
+    const el=document.getElementById('mb-'+pendingScroll);
+    if(el)el.scrollIntoView({block:'start',behavior:'smooth'});
+    pendingScroll=null;
+  }
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  S.view=t.dataset.v;save();$('#main').scrollTop=0;render();});
+
+const sheetHead=t=>`<div class="sh"><h3>${t}</h3>
+  <button class="xbtn" onclick="closeSheet()"><svg viewBox="0 0 24 24" width="15" height="15"
+   fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`;
+
+let redrawing=false;   /* 重绘后自动聚焦时不要全选，光标放末尾 */
+const PEN=`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/>
+  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
+const FIXC=['#2563EB','#0F766E','#B45309','#6D28D9','#BE123C','#0369A1'];
+/* 浮动开销的常用名目：不是每个月都有的那种 */
+const FLEXTAGS=['人情','看病','修车','送礼','旅行','衣服','数码','维修','学习','罚款'];
+
+/* 薪资去向占比：攒钱 / 生活费 / 自由支配 */
+function shareOf(EF,sum){
+  const sal=+S.salary||0;
+  const mo=getMonth(S.curMonth||curKey());
+  const live=(+mo.total||0);
+  const free=sal-sum-live;
+  return{sal,save:sum,live,free,ok:sal>0};
+}
+function salaryCard(EF,sum){
+  return `<div class="card" style="padding:13px 14px">
+    <div class="between">
+      <span class="tiny muted">月薪资（填了才能看占比）</span>
+      <input id="salaryIn" class="money" type="number" value="${S.salary||''}" placeholder="0" step="100"
+        style="width:110px;text-align:right;padding:6px 9px;font-size:14px">
+    </div>
+    <div id="salViz">${salViz(EF,sum)}</div>
+  </div>`;
+}
+function allocSum(){return LEVEL_KEYS.reduce((s,k)=>s+(S.alloc[k]||0),0);}
+/* 这个结构健不健康：攒钱 ≥20%、生活费 ≤50%、自由 ≥10% */
+function healthOf(q){
+  const P=n=>q.sal>0?Math.round(Math.max(0,n)/q.sal*100):0;
+  const ps=P(q.save),pl=P(q.live),pf=P(Math.max(0,q.free));
+  const out=[];
+  if(ps>=30)out.push(['good',`攒钱 <b>${ps}%</b>，很猛（建议 20% 起）`]);
+  else if(ps>=20)out.push(['good',`攒钱 <b>${ps}%</b>，达标`]);
+  else if(ps>=10)out.push(['warn',`攒钱 <b>${ps}%</b>，偏少，往 20% 提`]);
+  else out.push(['bad',`攒钱 <b>${ps}%</b>，基本没存下来`]);
+
+  if(pl<=50)out.push(['good',`生活费 <b>${pl}%</b>，合理（建议不超过 50%）`]);
+  else if(pl<=65)out.push(['warn',`生活费 <b>${pl}%</b>，偏高（建议压到 50% 以内）`]);
+  else out.push(['bad',`生活费 <b>${pl}%</b>，吃掉大半薪资`]);
+
+  if(q.free<0)out.push(['bad',`排不开：薪资比「攒钱 + 生活费」少 <b>${money(-q.free)}</b>`]);
+  else if(pf>=25)out.push(['good',`还剩 <b>${money(q.free)}</b> 自由支配（${pf}%），宽裕`]);
+  else if(pf>=10)out.push(['good',`还剩 <b>${money(q.free)}</b> 自由支配（${pf}%），够缓冲`]);
+  else out.push(['warn',`只剩 <b>${money(q.free)}</b>（${pf}%）能自由支配，抗风险偏弱`]);
+
+  const dreamSum=S.dreams.reduce((s,d)=>s+(+d.monthly||0),0);
+  if(dreamSum>0)out.push(['',`梦想基金每月 <b>${money(dreamSum)}</b>（${P(dreamSum)}%）算消费，没计进储蓄`]);
+
+  const bad=out.some(x=>x[0]==='bad'),warn=out.some(x=>x[0]==='warn');
+  const verdict=bad?['bad','偏危险']:warn?['warn','有点紧']:['good','健康'];
+  return{verdict,rows:out};
+}
+function salViz(EF,sum){
+  const q=shareOf(EF,sum);
+  const P=n=>q.sal>0?Math.round(Math.max(0,n)/q.sal*100):0;
+  const ps=P(q.save),pl=P(q.live),pf=P(Math.max(0,q.free));
+  let h='';
+  if(!q.ok){
+    h+=`<div class="tiny dim" style="margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)">
+      填上薪资，下面会自动算出攒钱 / 生活费 / 自由支配各占多少，并告诉你结构健不健康。</div>`;
+  }else{
+    const H=healthOf(q),vc=H.verdict[0]==='good'?'g':H.verdict[0]==='warn'?'r':'r';
+    const col=H.verdict[0]==='good'?'var(--green)':H.verdict[0]==='warn'?'#D97706':'var(--red)';
+    h+=`<div class="split" style="margin-top:11px">
+      <i style="width:${ps}%;background:#2F6BFF"></i>
+      <i style="width:${pl}%;background:#F59E0B"></i>
+      <i style="width:${pf}%;background:#0F9D58"></i>
+    </div>
+    <div class="legend">
+      <span><i style="background:#2F6BFF"></i>攒钱 <b class="money">${money(q.save)}</b> <b class="pct" style="color:#2F6BFF">${ps}%</b></span>
+      <span><i style="background:#F59E0B"></i>生活 <b class="money">${money(q.live)}</b> <b class="pct" style="color:#B45309">${pl}%</b></span>
+      <span><i style="background:#0F9D58"></i>自由 <b class="money">${money(Math.max(0,q.free))}</b> <b class="pct" style="color:#0F9D58">${pf}%</b></span>
+    </div>
+    <div class="between" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)">
+      <span class="tiny muted">这个结构健不健康</span>
+      <span class="pill" style="background:${col}1A;color:${col};border-color:transparent">${H.verdict[1]}</span>
+    </div>
+    <div class="ana" style="margin-top:8px;background:transparent;border:none;padding:0">
+      ${H.rows.map(([c,t])=>`<div class="al ${c}"><i></i><span>${t}</span></div>`).join('')}
+    </div>`;
+  }
+  return h;
+}
+/* 重绘但保住输入框的光标，避免打字时被打断 */
+function renderFocus(sel){
+  const el=sel?document.querySelector(sel):null;
+  const v=el?el.value:null,ss=el?el.selectionStart:null,se=el?el.selectionEnd:null;
+  render();
+  if(!sel||v===null)return;
+  const n=document.querySelector(sel);if(!n)return;
+  n.value=v;n.focus();
+  try{n.setSelectionRange(ss,se);}catch(e){}
+}
+function refreshSalViz(){
+  const el=$('#salViz');if(el)el.innerHTML=salViz(effAlloc(),allocSum());
+  const sal=+S.salary||0;
+  document.querySelectorAll('.salpct').forEach(e=>{
+    const k=e.dataset.lv,al=S.alloc[k]||0;
+    if(sal>0){e.style.display='';e.textContent='薪资 '+Math.round(al/sal*100)+'%';}
+    else e.style.display='none';
+  });
+  document.querySelectorAll('.salpctd').forEach(e=>{
+    const d=S.dreams.find(x=>x.id==e.dataset.dream);if(!d)return;
+    if(sal>0){e.style.display='';e.textContent='薪资 '+Math.round((+d.monthly||0)/sal*100)+'%';}
+    else e.style.display='none';
+  });
+}
+
+/* ---------------- 总览 ---------------- */
+function vOverview(){
+  const tot=GOAL_KEYS.reduce((s,k)=>s+(S.saved[k]||0),0);
+  const pct=Math.min(100,tot/TOTAL_GOAL*100);
+  const remain=TOTAL_GOAL-tot;
+  const EF=effAlloc();
+  const sumAll=LEVEL_KEYS.reduce((s,k)=>s+(EF[k]||0),0);  /* 四档实投，含 L1 */
+  const sum=GOAL_KEYS.reduce((s,k)=>s+(EF[k]||0),0);       /* 只算进总目标的三档 */
+  const days=sum>0?Math.ceil(remain/(sum/DAYS_PER_MONTH)):Infinity;
+  const yEnd=isFinite(days)?new Date().getFullYear()+Math.round(days/365):null;
+  /* 基准：应分配里本该流向总目标的部分。L1 还没攒满时它那份不进总目标，要剔掉；
+     L1 满了会自动溢出给后面，那时就不用剔。 */
+  const l1Full=(S.saved.L1||0)>=LEVELS[0].target;
+  const baseSum=Math.max(0,(+S.monthly||0)-(l1Full?0:(S.alloc.L1||0)));
+  const baseDays=baseSum>0?Math.ceil(remain/(baseSum/DAYS_PER_MONTH)):Infinity;
+  const delay=(isFinite(days)&&isFinite(baseDays))?Math.round(days-baseDays):0;
+  const delayHTML=delay>14?`<span class="pill r" style="margin-left:5px">${humanDelay(delay)}</span>`
+    :delay<=-14?`<span class="pill g" style="margin-left:5px">提前 ${humanDelay(-delay).replace('延长 ','')}</span>`:'';
+
+  let h=`
+  <div class="hero">
+    <div class="lbl">储蓄总目标</div>
+    <div class="big">${money(tot)} <small>/ ${money(TOTAL_GOAL)}</small></div>
+    <div class="bar"><i style="width:${pct}%;background:linear-gradient(90deg,#2F6BFF,#5B8CFF,#12B76A)"></i></div>
+    <div class="between tiny">
+      <span class="muted">已完成 ${pct.toFixed(1)}%</span>
+      <span class="dim">还差 ${money(remain)}</span>
+    </div>
+    <div class="between tiny" style="margin-top:5px">
+      <span class="dim">按现在的投法约 ${humanDays(days)}${yEnd?`（${yEnd} 年）`:''}</span>
+      ${delayHTML?`<span style="white-space:nowrap">${delayHTML}</span>`:''}
+    </div>
+    <div class="tiny dim" style="margin-top:6px">L2 + L3 + 长期 = ${money(TOTAL_GOAL)}。
+      L1 波动金 ${money(S.saved.L1||0)}/${money(LEVELS[0].target)} 单独攒，不计入。</div>
+  </div>
+  ${salaryCard(EF,sum)}
+
+  <div class="card" style="padding:12px 14px">
+    <div class="between">
+      <span class="tiny muted">每月应分配金额</span>
+      <span style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+        <b class="money" style="font-size:14px">${money(S.monthly)}</b>
+        <span class="dim" style="font-size:12px">/</span>
+        <b class="money" style="font-size:14px;color:${sumAll<(+S.monthly||0)?'#D97706':sumAll>(+S.monthly||0)?'var(--red)':'var(--green)'}">${money(sumAll)}</b>
+        <button class="adj" id="editMonthly" title="改这个月投多少">改本月</button>
+      </span>
+    </div>
+    <div class="tiny dim" style="margin-top:6px">前面是长期基准，后面是这个月实际投的。
+      手头紧可以少投，宽裕了也能多投，基准不会跟着变。</div>
+    <div class="between" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+      <div style="padding-right:8px">
+        <div class="tiny" style="color:var(--text)">满档自动溢出</div>
+        <div class="tiny dim">L1/L2/L3 攒满后，那份钱转投下一档，最终全给长期</div>
+      </div>
+      <button class="btn sm ${S.overflow?'primary':''}" id="ovfBtn">${S.overflow?'已开启':'已关闭'}</button>
+    </div>
+    ${S.overflow?`<div class="tiny" style="margin-top:8px;color:var(--green)">
+      本月实投：${LEVELS.map(l=>`${l.k} ${money(EF[l.k]||0)}`).join(' · ')}</div>`:''}
+  </div>`;
+
+  LEVELS.forEach(lv=>{
+    const sv=S.saved[lv.k]||0, al=S.alloc[lv.k]||0, ef=EF[lv.k]||0;
+    const full=sv>=lv.target;
+    const p=Math.min(100,sv/lv.target*100);
+    const moved=ef-al;
+    h+=`
+    <div class="lv">
+      <div class="head">
+        <span class="dot" style="background:${lv.c}"></span>
+        <span class="name">${lv.n}</span>
+        ${full?`<span class="pill g">已满</span>`:''}
+        <span class="amt money">${money(sv)} / ${money(lv.target)}</span>
+      </div>
+      <div class="desc">${lv.d}</div>
+      <div class="bar sm"><i style="width:${p}%;background:${lv.c}"></i></div>
+      <div class="between tiny">
+        <span class="dim">${p.toFixed(1)}%</span>
+        <span class="dim">还差 ${money(Math.max(0,lv.target-sv))}</span>
+      </div>
+      <div class="foot">
+        <span class="setlbl">每月投入 <b class="money">${money(al)}</b>
+          <span class="pill salpct" data-lv="${lv.k}" style="margin-left:5px;${(+S.salary||0)>0?'':'display:none'}">薪资 ${(+S.salary||0)>0?Math.round(al/(+S.salary)*100):0}%</span>
+          ${full&&lv.k!=='LG'?`<span class="pill g" style="margin-left:5px">转投长期</span>`
+            :moved>0?`<span class="pill g" style="margin-left:5px">实投 ${money(ef)}</span>`
+            :moved<0?`<span class="pill r" style="margin-left:5px">让出 ${money(-moved)}</span>`:''}
+        </span>
+        <button class="adj" data-alloc="${lv.k}">调整
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>`;
+  });
+
+  const dSum=S.dreams.reduce((s,d)=>s+(d.saved||0),0);
+  h+=`<div class="sec"><h2>梦想基金</h2><span class="hint">项目制 · 不计入储蓄</span></div>
+  <div class="card" style="padding:12px 14px">
+    <div class="between">
+      <span class="tiny muted">${S.dreams.length?S.dreams.length+' 个项目 · 已投入 '+money(dSum):'想去哪、想买啥，一个项目一个进度'}</span>
+      <button class="btn sm primary" id="addDream">+ 项目</button>
+    </div>
+    ${S.dreams.length?'':'<div class="tiny dim" style="margin-top:7px">还没建项目。点右上角 + 加一个，比如「日本滑雪」，填上目标金额和每月投多少。</div>'}
+  </div>`;
+  S.dreams.forEach(d=>{
+    const e=dreamEta(d);
+    const tag=!isFinite(e.delta)?`<span class="pill r">未设月投</span>`
+      :e.delta<0?`<span class="pill g">提前 ${humanDays(-e.delta)}</span>`
+      :e.delta>0?`<span class="pill r">延后 ${humanDays(e.delta)}</span>`:`<span class="pill">刚好</span>`;
+    h+=`
+    <div class="dream">
+      <div class="between">
+        <div class="nm">${esc(d.name)}</div>
+        <span style="display:flex;align-items:center;gap:6px">
+          <button class="adj" data-dreamedit="${d.id}" title="编辑项目">${PEN}</button>
+          <button class="xbtn" data-dreamdel="${d.id}" style="width:26px;height:26px">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </span>
+      </div>
+      <div class="tiny dim" style="margin-top:2px">目标 ${money(d.target)} · 目标日 ${fmtDate(d.deadline)}</div>
+      <div class="track">
+        <i class="fill" style="width:${e.pct}%"></i>
+        <i class="mark" style="left:100%"></i>
+        <i class="now" style="left:${e.pct}%"></i>
+      </div>
+      <div class="between tiny">
+        <span class="money muted">${money(d.saved||0)} / ${money(d.target)} · ${e.pct.toFixed(0)}%</span>
+        <span class="dim">${e.date?fmtDate(e.date):'—'} ${tag}</span>
+      </div>
+      <div class="foot" style="margin-top:9px">
+        <span class="setlbl">每月投入 <b class="money">${money(d.monthly)}</b>
+          <span class="pill salpctd" data-dream="${d.id}" style="margin-left:5px;${(+S.salary||0)>0?'':'display:none'}">薪资 ${(+S.salary||0)>0?Math.round((+d.monthly||0)/(+S.salary)*100):0}%</span></span>
+        <button class="adj" data-dreamalloc="${d.id}">调整
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>`;
+  });
+  h+=`<div style="height:14px"></div>`;
+  return h;
+}
+
+function distribute(o,k,val,total){
+  val=Math.max(0,Math.min(total,Math.round(val)));
+  const others=LEVEL_KEYS.filter(x=>x!==k);
+  const rest=Math.max(0,total-val);
+  const sum=others.reduce((s,x)=>s+(o[x]||0),0);
+  if(sum<=0){const eq=Math.round(rest/others.length);others.forEach(x=>o[x]=eq);}
+  else{let acc=0;others.forEach((x,i)=>{
+    if(i===others.length-1)o[x]=Math.max(0,rest-acc);
+    else{const v=Math.round((o[x]||0)/sum*rest);o[x]=v;acc+=v;}});}
+  o[k]=val;
+}
+/* 四档同屏调整：看得到彼此，不会调错 */
+function allocSheet(){
+  const tmp={};LEVEL_KEYS.forEach(x=>tmp[x]=S.alloc[x]||0);
+  /* 这里调的是「比例」，总额锚定本月实投，不是基准 —— 改总额请去「改本月」 */
+  let pool=LEVEL_KEYS.reduce((s,x)=>s+tmp[x],0)||(+S.monthly||0);
+  const draw=()=>{
+    const box=$('#allocRows');if(!box)return;
+    const used=LEVEL_KEYS.reduce((s,x)=>s+tmp[x],0);
+    box.innerHTML=LEVELS.map(lv=>{
+      const v=tmp[lv.k]||0;
+      const p=pool>0?Math.round(v/pool*100):0;
+      return `<div class="arow" style="--accentC:${lv.c}">
+        <div class="between" style="margin-bottom:6px">
+          <span class="tiny"><span class="dot" style="background:${lv.c};margin-right:5px"></span>${lv.n}</span>
+          <span class="tiny"><b class="money" style="font-size:14.5px">${money(v)}</b>
+            <span class="dim">${p}%</span></span>
+        </div>
+        <input type="range" class="arl" data-k="${lv.k}" min="0" max="${Math.max(50,pool)}" step="50" value="${v}">
+      </div>`;
+    }).join('')+`<div class="between tiny" style="margin-top:6px;padding-top:9px;border-top:1px dashed var(--line)">
+      <span class="dim">合计</span>
+      <span style="color:${used>pool?'var(--red)':'var(--muted)'}">${money(used)} / ${money(pool)}</span></div>`;
+    box.querySelectorAll('.arl').forEach(r=>r.oninput=()=>{
+      distribute(tmp,r.dataset.k,+r.value,pool);draw();});
+  };
+  sheet(`${sheetHead('调整四档比例')}
+    <div class="tiny dim" style="margin-bottom:13px">本月实投 <b class="money">${money(pool)}</b> · 拖动任意一项，其余三项自动让位。
+      要改总额，去总览点「改本月」。</div>
+    <div id="allocRows"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okAlloc">确定</button></div>`,()=>{
+    draw();
+    $('#okAlloc').onclick=()=>{
+      LEVEL_KEYS.forEach(x=>S.alloc[x]=tmp[x]);save();closeSheet();render();toast('分配已更新');};
+  });
+}
+/* 梦想项目完整编辑：名字、目标、月投、已攒、日期都能改 */
+function dreamCardEdit(id){
+  const d=S.dreams.find(x=>x.id==id);if(!d)return;
+  sheet(`${sheetHead('编辑 · '+d.name)}
+    <div class="fld"><label>项目名称</label><input id="dn" value="${esc(d.name)}"></div>
+    <div class="f2">
+      <div class="fld"><label>目标金额</label><input id="dt" type="number" value="${d.target}" step="500"></div>
+      <div class="fld"><label>每月投入</label><input id="dm" type="number" value="${d.monthly||0}" step="100"></div>
+    </div>
+    <div class="fld"><label>已经攒了多少</label><input id="ds" type="number" value="${d.saved||0}" step="100"></div>
+    <div class="fld"><label>希望攒到的日期</label><input id="dd" type="date"
+      value="${d.deadline||addDays(todayStr(),365)}"></div>
+    <div class="tiny dim" style="margin-top:8px">改「已经攒了多少」不会动你的储蓄，只是更新这条进度。</div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okDreamE">保存</button></div>`,()=>{
+    $('#okDreamE').onclick=()=>{
+      const n=$('#dn').value.trim();if(!n)return toast('填个名字');
+      d.name=n;
+      d.target=Math.max(1,num($('#dt').value,1));
+      d.monthly=num($('#dm').value);
+      d.saved=Math.min(d.target,num($('#ds').value));
+      d.deadline=$('#dd').value||addDays(todayStr(),365);
+      save();closeSheet();render();toast('已保存');};
+  });
+}
+function monthlySheet(){
+  const sal=+S.salary||0;
+  /* 基准是长期标准；put 是这个月真正投进去的数，两者互不影响 */
+  const ratio={};LEVEL_KEYS.forEach(x=>ratio[x]=S.alloc[x]||0);
+  let base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0);
+  /* 四档全是 0（比如上月投了 0）时回落到默认配比，不然钱会全砸进 L1 */
+  if(!base0){LEVEL_KEYS.forEach(x=>ratio[x]=BASE[x]||0);
+    base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0)||1;}
+  let base=S.monthly||0, put=LEVEL_KEYS.reduce((s,x)=>s+(S.alloc[x]||0),0)||S.monthly||0;
+  /* 四舍五入会有 1~2 元误差，补到占比最大的那一档，保证四档合计 === 输入的数 */
+  const spread=n=>{
+    const o={};let s=0;
+    LEVEL_KEYS.forEach(k=>{o[k]=Math.round(ratio[k]/base0*n);s+=o[k];});
+    if(s!==n){
+      const big=LEVEL_KEYS.slice().sort((a,b)=>(ratio[b]||0)-(ratio[a]||0))[0];
+      o[big]=Math.max(0,(o[big]||0)+(n-s));
+    }
+    return o;
+  };
+  const draw=()=>{
+    const el=$('#mRows');if(!el)return;
+    const v=spread(put);
+    el.innerHTML=LEVELS.map(lv=>`
+      <div class="arow" style="--accentC:${lv.c}">
+        <div class="between" style="margin-bottom:0">
+          <span class="tiny"><span class="dot" style="background:${lv.c};margin-right:5px"></span>${lv.n}</span>
+          <span class="tiny"><b class="money" style="font-size:13.5px">${money(v[lv.k]||0)}</b>
+            <span class="dim" style="margin-left:5px">${put>0?Math.round((v[lv.k]||0)/put*100):0}%</span></span>
+        </div></div>`).join('')
+      +`<div class="between tiny" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+        <span class="dim">四档合计</span>
+        <span><b class="money">${money(put)}</b>
+          <span class="dim" style="margin-left:5px">/ 基准 ${money(base)}</span></span></div>`;
+    const pc=$('#mPct');
+    if(pc&&sal>0)pc.innerHTML=Math.round(put/sal*100)+'%';
+  };
+  sheet(`${sheetHead('每月存储')}
+    <div class="f2">
+      <div class="fld"><label>基准（长期，一般不动）</label>
+        <input id="mBase" type="text" inputmode="decimal" class="money" value="${base}" step="100"></div>
+      <div class="fld"><label>这个月投多少</label>
+        <input id="mPut" type="text" inputmode="decimal" class="money" value="${put}" step="100"></div>
+    </div>
+    <div class="tiny dim" style="margin:9px 0 7px">改「这个月投多少」，四档按现在的比例自动分摊。
+      ${sal>0?`占薪资 <b class="pct" id="mPct">${Math.round(put/sal*100)}%</b>`:''}</div>
+    <div id="mRows"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okM">确定</button></div>`,()=>{
+    draw();
+    $('#mPut').oninput=e=>{put=Math.max(0,parseFloat(e.target.value)||0);draw();};
+    $('#mBase').oninput=e=>{base=Math.max(0,parseFloat(e.target.value)||0);draw();};
+    $('#okM').onclick=()=>{
+      base=Math.max(0,parseFloat($('#mBase').value)||0);
+      put=Math.max(0,parseFloat($('#mPut').value)||0);
+      const v=spread(put);
+      S.monthly=base;LEVEL_KEYS.forEach(k=>S.alloc[k]=v[k]||0);
+      save();closeSheet();render();toast('这个月投 '+money(put));};
+  });
+}
+
+function bindOverview(){
+  const em=$('#editMonthly');if(em)em.onclick=monthlySheet;
+  const ov=$('#ovfBtn');
+  if(ov)ov.onclick=()=>{S.overflow=!S.overflow;save();render();
+    toast(S.overflow?'溢出已开启 · 满档转投长期':'已关闭 · 按设定比例投');};
+  document.querySelectorAll('[data-alloc]').forEach(b=>b.onclick=()=>allocSheet());
+  const si=$('#salaryIn');
+  if(si)si.oninput=()=>{S.salary=num(si.value);save();refreshSalViz();};
+  const ad=$('#addDream');
+  if(ad)ad.onclick=()=>sheet(`${sheetHead('添加梦想项目')}
+    <div class="fld"><label>项目名称</label><input id="dn" placeholder="例如：俄罗斯旅行"></div>
+    <div class="f2"><div class="fld"><label>目标金额</label><input id="dt" type="number" value="10000" step="500"></div>
+      <div class="fld"><label>每月投入</label><input id="dm" type="number" value="500" step="100"></div></div>
+    <div class="fld"><label>已经攒了多少（可留空）</label><input id="ds" type="number" value="0" step="100"></div>
+    <div class="fld"><label>希望攒到的日期</label><input id="dd" type="date" value="${addDays(todayStr(),365)}"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okDream">添加</button></div>`,()=>{
+      $('#okDream').onclick=()=>{
+        const n=$('#dn').value.trim();if(!n)return toast('填个名字');
+        S.dreams.push({id:Date.now(),name:n,target:Math.max(1,+$('#dt').value||1),saved:Math.max(0,+$('#ds').value||0),
+          monthly:Math.max(0,+$('#dm').value||0),deadline:$('#dd').value||addDays(todayStr(),365)});
+        save();closeSheet();render();toast('项目已添加');};
+    });
+  document.querySelectorAll('[data-dreamalloc]').forEach(b=>b.onclick=()=>{
+    const d=S.dreams.find(x=>x.id==b.dataset.dreamalloc);if(!d)return;
+    sheet(`${sheetHead(d.name+' · 每月投入')}
+      <div class="bignum"><small>¥</small><span id="dv">${d.monthly}</span></div>
+      <input type="range" id="dr" min="0" max="5000" step="50" value="${d.monthly}" style="--accentC:#DB2777">
+      <div class="between tiny" style="margin-top:9px"><span class="dim">¥0</span><span class="dim">¥5,000</span></div>
+      <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+        <button class="btn primary" id="okD">确定</button></div>`,()=>{
+      const r=$('#dr'),v=$('#dv');r.oninput=()=>{v.textContent=r.value;};
+      $('#okD').onclick=()=>{d.monthly=+r.value;save();closeSheet();render();
+        toast(d.name+' 每月 '+money(d.monthly));};
+    });
+  });
+  document.querySelectorAll('[data-dreamedit]').forEach(b=>b.onclick=()=>dreamCardEdit(b.dataset.dreamedit));
+  document.querySelectorAll('[data-dreamdel]').forEach(b=>b.onclick=()=>{
+    const d=S.dreams.find(x=>x.id==b.dataset.dreamdel);if(!d)return;
+    if(!confirm(`删掉「${d.name}」？已攒的 ${money(d.saved||0)} 记录也会一起没了。`))return;
+    S.dreams=S.dreams.filter(x=>x.id!=b.dataset.dreamdel);save();render();toast('已删除项目');});
+}
+
+/* ---------------- 生活费 ---------------- */
+function cloudHTML(){
+  const agg={};
+  Object.values(S.months).forEach(m=>
+    [...(m.items||[]),...(m.flex||[])].forEach(it=>{
+      const t=it.tag||'其他',a=+it.amt||0;
+      if(!agg[t])agg[t]={amt:0,n:0};
+      agg[t].amt+=a;agg[t].n++;}));
+  const arr=Object.entries(agg).sort((a,b)=>b[1].amt-a[1].amt);
+  const total=arr.reduce((s,x)=>s+x[1].amt,0);
+  const COLORS=['#93C5FD','#60A5FA','#3B82F6','#2563EB','#1D4ED8'];
+  let h=`<div class="sec" style="margin-top:6px"><h2>标签统计 · 全年累计</h2>
+    <span class="hint">${arr.length} 个标签 · ${money(total)}</span></div>
+    <div class="card">`;
+  if(!arr.length)h+=`<div class="empty">还没有数据，先去记几笔</div>`;
+  else{
+    const max=arr[0][1].amt,min=arr[arr.length-1][1].amt;
+    h+=`<div class="cloud" style="height:${Math.min(260,120+arr.length*13)}px">`;
+    arr.forEach(([t,v],i)=>{
+      const r=max===min?1:(v.amt-min)/(max-min);
+      const fs=Math.round(13+r*17);
+      const col=COLORS[Math.min(4,Math.floor(r*5))];
+      h+=`<span class="cw" data-cw="${esc(t)}" data-amt="${Math.round(v.amt)}" data-n="${v.n}"
+        style="font-size:${fs}px;color:${col};animation-delay:${(i*0.53).toFixed(2)}s">${esc(t)}</span>`;
+    });
+    h+=`</div><div class="cloudTip">字越大 = 花得越多。点一下看金额。</div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+/* 自由浮动词云：从中心螺旋找位置，躲开已放好的词 */
+function layoutCloud(){
+  const box=document.querySelector('.cloud');if(!box)return;
+  const W=box.clientWidth,H=box.clientHeight;
+  if(!W||!H)return;
+  const placed=[];
+  box.querySelectorAll('.cw').forEach(el=>{
+    const w=el.offsetWidth,h=el.offsetHeight;
+    const cx=W/2,cy=H/2;
+    let done=false;
+    for(let t=0;t<3000&&!done;t++){
+      const a=t*0.38,r=2+t*0.42;
+      const x=cx+r*Math.cos(a)*1.75-w/2;
+      const y=cy+r*Math.sin(a)*0.78-h/2;
+      if(x<2||y<2||x+w>W-2||y+h>H-2)continue;
+      const hit=placed.some(p=>!(x+w+7<p.x||x>p.x+p.w+7||y+h+5<p.y||y>p.y+p.h+5));
+      if(!hit){placed.push({x,y,w,h});el.style.left=Math.round(x)+'px';
+        el.style.top=Math.round(y)+'px';done=true;}
+    }
+    if(!done){ /* 挤不下就随便找个角落 */
+      const x=Math.random()*Math.max(1,W-w-2),y=Math.random()*Math.max(1,H-h-2);
+      placed.push({x,y,w,h});el.style.left=Math.round(x)+'px';el.style.top=Math.round(y)+'px';}
+  });
+}
+function vLiving(){
+  rebuildCarry();
+  const y=yearKey(), cm=parseInt((S.curMonth||curKey()).split('-')[1],10);
+  let h=cloudHTML();
+  h+=`<div class="sec"><h2>生活费 · ${y} 年</h2><span class="hint">点月份展开记账</span></div>`;
+  const order=[cm];for(let n=1;n<=12;n++)if(n!==cm)order.push(n);
+  for(const m of order){
+    const k=y+'-'+pad(m), mo=S.months[k];
+    const has=mo&&(mo.total||(mo.items||[]).length||(mo.wdata||[]).length);
+    const C=monthCalc(k);
+    const open=!!S.open[k];
+    const isCur=m===cm;
+    let sum='未记录';
+    if(has)sum=`已花 <b>${money(C.spent)}</b> · ${C.balance<0
+        ?`<span style="color:var(--red)">超支 ${money(-C.balance)}</span>`
+        :`结余 <b>${money(C.balance)}</b>`}`;
+    h+=`<div class="mb ${open?'on':''}" id="mb-${m}">
+      <div class="mh" data-m="${m}">
+        <span class="mm" ${isCur?'style="color:var(--blue)"':''}>${m}月</span>
+        <span class="msum">${sum}</span>
+        ${has?`<span class="cpy" data-cpy="${m}" title="复制这个月的数据">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>`:''}
+        <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>`;
+    if(open)h+=monthBody(k,m,mo||getMonth(k),C);
+    h+=`</div>`;
+  }
+  h+=debtHTML();
+  h+=`<div style="height:6px"></div>`;
+  return h;
+}
+
+function monthBody(k,m,mo,C){
+  const items=mo.items||[];
+  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexList=mo.flex||[];
+  const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
+  const pctOf=C.available>0?Math.round(fixSum/C.available*100):0;
+  const wk=mo.weeks||4;
+  const pool=C.available-fixSum-flexSum;
+  const spent=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
+  const left=pool-spent;
+  const fixOpen=!!S.fixOpen[k];
+  let h=`<div class="mbd">`;
+  h+=`<div class="fline">
+    <span class="fl">${m} 月生活费</span>
+    <span class="tiny dim">本月可花</span>
+    <input class="money mTotal" data-m="${k}" type="number" value="${mo.total||''}" placeholder="0" step="100">
+  </div>`;
+  if(C.carryIn)h+=`<div class="between tiny" style="padding-bottom:2px">
+    <span class="dim">上月结转</span>
+    <span style="color:${C.carryIn<0?'var(--red)':'var(--green)'}">${C.carryIn<0?'− 欠':'＋ 余'} ${money(Math.abs(C.carryIn))}</span></div>`;
+  h+=`<div class="fold ${fixOpen?'open':''}" data-fix="${k}">
+      <span class="ft">固定开销</span>
+      <span class="fv">${money(fixSum)} · <b class="pct">${pctOf}%</b></span>
+      <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+    </div>`;
+  if(fixOpen){
+    h+=items.length?items.map((it,i)=>`
+      <div class="li">
+        <span class="tg"><select data-li="${k}" data-i="${i}" data-f="tag">
+          ${S.tags.map(t=>`<option ${t===it.tag?'selected':''}>${esc(t)}</option>`).join('')}
+          ${!S.tags.includes(it.tag)?`<option selected>${esc(it.tag)}</option>`:''}
+          <option value="__new">+ 新标签…</option></select></span>
+        <span class="am"><i>¥</i><input class="money" data-li="${k}" data-i="${i}" data-f="amt"
+          type="number" value="${it.amt}" step="10"></span>
+        <span class="pc">${C.available>0?Math.round((+it.amt||0)/C.available*100):0}%</span>
+        <span class="nt"><input data-li="${k}" data-i="${i}" data-f="note"
+          value="${esc(it.note||'')}" placeholder="备注"></span>
+        <button class="del" data-del="${k}" data-i="${i}">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>`).join(''):`<div class="empty" style="padding:10px 0">还没有固定开销</div>`;
+    h+=`<div class="chips">
+      ${tagFreq().slice(0,6).map((t,i)=>`<span class="chip c${i%5}" data-addtag="${k}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
+      <span class="chip add" data-newtag="${k}">+ 新标签</span>
+      <span class="chip" data-managetags="${k}">管理标签</span>
+      <span class="chip" data-tpl="${k}">套用模板</span>
+      <span class="chip" data-savetpl="${k}">存为模板</span>
+    </div>`;
+  }
+  /* 浮动开销：独立区块，展开月份就能写，不用先去点开固定开销 */
+  h+=`<div class="fxblock">
+    <div class="bxhead">
+      <span class="tiny" style="color:var(--text);font-weight:660">浮动开销</span>
+      <span class="tiny dim">不固定 · 直接在下面写</span>
+      <b class="money" id="flexSum-${k}" style="margin-left:auto;font-size:13.5px">${money(flexSum)}</b>
+    </div>`;
+  h+=flexList.length?flexList.map((it,i)=>`
+      <div class="flexli"><i class="fd" style="background:${FIXC[i%FIXC.length]}"></i>
+        <input class="fln" data-flexn="${k}" data-i="${i}" value="${esc(it.tag)}" placeholder="名目">
+        <span class="am"><em>¥</em><input class="money" data-flexamt="${k}" data-i="${i}"
+          type="number" value="${it.amt||''}" placeholder="0" step="10"></span>
+        <button class="del" data-flexdel="${k}" data-i="${i}">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`).join('')
+    :`<div class="tiny dim" style="padding:3px 0 1px">这个月还没有。人情、看病、修车这类不固定的，点下面加。</div>`;
+  h+=`<div class="chips" style="margin-top:7px">
+      ${FLEXTAGS.slice(0,5).map((t,i)=>`<span class="chip c${i%5}" data-addflex="${k}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
+      <span class="chip add" data-addflexnew="${k}">+ 新名目</span>
+    </div></div>`;
+  h+=`<div class="fline wkline" style="padding-top:11px;border-top:1px dashed var(--line);margin-top:8px">
+      <span class="fl">${left<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${left<0?'style="color:var(--red)"':''}>${left<0?money(-left):money(left)}</b></span>
+      <span class="tiny dim">/ 实际 <b class="money">${money(spent)}</b>
+        · ${pool>0?Math.round(spent/pool*100):0}%</span>
+      <select class="wkSel" data-wk="${k}" style="width:auto;padding:5px 7px;font-size:12px">
+        ${WEEK_OPTS.map(n=>`<option value="${n}" ${wk===n?'selected':''}>${n} 周</option>`).join('')}
+      </select>
+      <button class="adj" data-wadj="${k}">调整周
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>`;
+  for(let w=1;w<=wk;w++){
+    const d=(mo.wdata||[])[w-1]||{};
+    const bud=budgetOf(k,pool,w-1,wk);
+    h+=`<div class="wk">
+      <span class="wl"><b>第 ${w} 周</b><em>${wkBudgetTxt(pool,bud)}</em></span>
+      <input class="spent money" data-wd="${k}" data-w="${w-1}" type="number" value="${d.spent===undefined||d.spent===null?'':d.spent}" placeholder="实际">
+      <input class="desc" data-wdd="${k}" data-w="${w-1}" value="${esc(d.desc||'')}" placeholder="这周花哪了">
+    </div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+function debtHTML(){
+  const left=S.debts.reduce((s,d)=>s+Math.max(0,(+d.total||0)-Math.min(+d.total||0,(+d.paid||0)*(+d.per||0))),0);
+  let h=`<div class="sec"><h2>债务台账</h2><span class="hint">还剩 ${money(left)}</span></div>
+    <div class="card" style="padding:12px 14px">`;
+  if(!S.debts.length)h+=`<div class="empty">没有欠债，很好</div>`;
+  const alive=[],done=[];
+  S.debts.forEach(d=>{((+d.total||0)-Math.min(+d.total||0,(d.paid||0)*(+d.per||0))>0?alive:done).push(d);});
+  done.forEach(d=>{
+    h+=`<div class="debt" style="opacity:.6">
+      <div class="between">
+        <span style="font-weight:620;font-size:14px">${esc(d.name)} <span class="pill g">已结清</span></span>
+        <span class="tiny money muted">${money(d.total)}</span>
+      </div>
+      <div class="dbars"><i style="width:100%;background:var(--green)"></i></div>
+      <div class="between tiny">
+        <span class="dim">${d.paid||0} 期全部还完</span>
+        <button class="xbtn" data-ddel="${S.debts.indexOf(d)}" style="width:26px;height:26px">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+    </div>`;});
+  alive.forEach(d=>{
+    const i=S.debts.indexOf(d);
+    const paid=Math.min(+d.total||0,(+d.paid||0)*(+d.per||0));
+    const p=(+d.total||0)>0?paid/(+d.total)*100:0;
+    h+=`<div class="debt">
+      <div class="between">
+        <span style="font-weight:620;font-size:14px">${esc(d.name)}</span>
+        <span class="tiny money muted">${money(paid)} / ${money(d.total)}</span>
+      </div>
+      <div class="dbars"><i style="width:${p}%"></i></div>
+      <div class="between tiny">
+        <span class="dim">每期 ${money(d.per)} · 已还 ${d.paid||0} 期 · 剩 ${money(Math.max(0,(+d.total||0)-paid))}</span>
+        <span class="row" style="gap:6px">
+          <button class="btn sm" data-dpay="${i}">记本期</button>
+          <button class="xbtn" data-ddel="${i}" style="width:26px;height:26px">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </span>
+      </div>
+    </div>`;
+  });
+  h+=`<div class="chips" style="padding-top:${S.debts.length?'10px':'2px'};${S.debts.length?'border-top:1px dashed var(--line)':''}">
+      <span class="chip add" id="addDebt">+ 记一笔欠债</span>
+      ${['花呗','信用卡','朋友','白条'].map((t,i)=>`<span class="chip c${i%5}" data-quickdebt="${t}">${t}</span>`).join('')}
+    </div></div>`;
+  return h;
+}
+
+function bindLiving(){
+  const y=yearKey();
+  requestAnimationFrame(layoutCloud);
+  document.querySelectorAll('.mh').forEach(el=>el.onclick=()=>{
+    const k=y+'-'+pad(el.dataset.m);
+    if(!S.open[k]){
+      Object.keys(S.open).forEach(x=>S.open[x]=false);
+      S.open[k]=true;S.fixOpen[k]=true;pendingScroll=el.dataset.m;
+    }else S.open[k]=false;
+    save();render();
+  });
+  document.querySelectorAll('[data-fix]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();const k=el.dataset.fix;
+    S.fixOpen[k]=!S.fixOpen[k];save();render();});
+  document.querySelectorAll('.mTotal').forEach(el=>el.oninput=()=>{
+    getMonth(el.dataset.m).total=num(el.value);save();renderKeep();});
+  document.querySelectorAll('[data-li]').forEach(el=>{
+    el.onchange=()=>{
+      const k=el.dataset.li,i=+el.dataset.i,f=el.dataset.f,mo=getMonth(k);
+      if(f==='tag'&&el.value==='__new'){
+        const v=prompt('新标签名称');if(!v)return render();
+        if(!S.tags.includes(v))S.tags.push(v);
+        mo.items[i].tag=v;save();render();return;}
+      mo.items[i][f]=f==='amt'?num(el.value):el.value;save();renderKeep();};
+  });
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();const mo=getMonth(b.dataset.del);
+    mo.items.splice(+b.dataset.i,1);save();render();});
+  document.querySelectorAll('[data-flexdel]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();const mo=getMonth(b.dataset.flexdel);
+    mo.flex=mo.flex||[];mo.flex.splice(+b.dataset.i,1);save();render();});
+  document.querySelectorAll('[data-flexn]').forEach(el=>el.oninput=()=>{
+    const mo=getMonth(el.dataset.flexn);mo.flex=mo.flex||[];
+    if(mo.flex[+el.dataset.i])mo.flex[+el.dataset.i].tag=el.value;save();});
+  document.querySelectorAll('[data-flexamt]').forEach(el=>el.oninput=()=>{
+    const mo=getMonth(el.dataset.flexamt);mo.flex=mo.flex||[];
+    if(mo.flex[+el.dataset.i])mo.flex[+el.dataset.i].amt=num(el.value);
+    save();renderKeep();});
+  document.querySelectorAll('[data-addflex]').forEach(b=>b.onclick=()=>{
+    const mo=getMonth(b.dataset.addflex);mo.flex=mo.flex||[];
+    if(mo.flex.length>=8)return toast('最多 8 项，删掉再加');
+    mo.flex.push({tag:b.dataset.t,amt:0,note:''});save();render();});
+  document.querySelectorAll('[data-addflexnew]').forEach(b=>b.onclick=()=>{
+    const v=prompt('开销名目','人情');if(!v||!v.trim())return;
+    const mo=getMonth(b.dataset.addflexnew);mo.flex=mo.flex||[];
+    if(mo.flex.length>=8)return toast('最多 8 项，删掉再加');
+    mo.flex.push({tag:v.trim(),amt:0,note:''});save();render();toast('已加 '+v.trim());});
+  document.querySelectorAll('[data-addtag]').forEach(b=>b.onclick=()=>{
+    const mo=getMonth(b.dataset.addtag);
+    mo.items=mo.items||[];mo.items.push({tag:b.dataset.t,amt:0,note:''});save();render();});
+  document.querySelectorAll('[data-newtag]').forEach(b=>b.onclick=()=>{
+    const v=prompt('新标签名称');if(!v)return;
+    if(!S.tags.includes(v))S.tags.push(v);
+    const mo=getMonth(b.dataset.newtag);
+    mo.items=mo.items||[];mo.items.push({tag:v,amt:0,note:''});save();render();toast('已加标签 '+v);});
+  document.querySelectorAll('[data-savetpl]').forEach(b=>b.onclick=()=>{
+    const mo=getMonth(b.dataset.savetpl);
+    if(!(mo.items||[]).length)return toast('这个月还没有明细');
+    const n=prompt('模板名称','固定开销');if(!n)return;
+    S.templates.push({name:n,items:mo.items.map(i=>({...i}))});save();toast('模板已保存');});
+  document.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>{
+    if(!S.templates.length)return toast('还没有模板');
+    const names=S.templates.map(t=>t.name+'（'+t.items.length+' 项）');
+    const picked=prompt('套用哪个模板？\n'+names.map((n,i)=>(i+1)+'. '+n).join('\n'),'1');
+    if(!picked)return;
+    const t=S.templates[+picked-1];if(!t)return toast('没有这个模板');
+    const mo=getMonth(b.dataset.tpl);
+    if((mo.items||[]).length&&!confirm('套用模板会覆盖这个月现有的固定开销明细，继续？'))return;
+    mo.items=t.items.map(i=>({...i}));save();render();toast('已套用模板');});
+  document.querySelectorAll('.wkSel').forEach(el=>el.onchange=()=>{
+    getMonth(el.dataset.wk).weeks=+el.value;save();render();});
+  document.querySelectorAll('[data-wd]').forEach(el=>el.oninput=()=>{
+    const mo=getMonth(el.dataset.wd);mo.wdata=mo.wdata||[];
+    const i=+el.dataset.w;mo.wdata[i]={...(mo.wdata[i]||{}),spent:+el.value||0};save();renderKeep();});
+  document.querySelectorAll('[data-wdd]').forEach(el=>el.oninput=()=>{
+    const mo=getMonth(el.dataset.wdd);mo.wdata=mo.wdata||[];
+    const i=+el.dataset.w;mo.wdata[i]={...(mo.wdata[i]||{}),desc:el.value};save();});
+  document.querySelectorAll('[data-cpy]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();reportSheet(y+'-'+pad(el.dataset.cpy));});
+  document.querySelectorAll('[data-wadj]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();weekSheet(el.dataset.wadj);});
+  document.querySelectorAll('[data-managetags]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();tagSheet(el.dataset.managetags);});
+  document.querySelectorAll('[data-cw]').forEach(el=>el.onclick=()=>toast(
+    el.dataset.cw+'：'+money(+el.dataset.amt)+' · '+el.dataset.n+' 次'));
+  const ad=$('#addDebt');
+  if(ad)ad.onclick=()=>debtSheet('',3000,500);
+  document.querySelectorAll('[data-quickdebt]').forEach(b=>b.onclick=()=>debtSheet(b.dataset.quickdebt,3000,500));
+  document.querySelectorAll('[data-dpay]').forEach(b=>b.onclick=()=>{
+    const d=S.debts[+b.dataset.dpay];if(!d)return;
+    d.paid=(d.paid||0)+1;
+    if(!S.tags.includes('还款'))S.tags.push('还款');
+    const mo=getMonth(S.curMonth||curKey());
+    mo.items=mo.items||[];
+    mo.items.push({tag:'还款',amt:+d.per||0,note:d.name+' 第 '+d.paid+' 期'});
+    save();render();toast('本期已还，已记入本月');});
+  document.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=()=>{
+    S.debts.splice(+b.dataset.ddel,1);save();render();toast('已删除');});
+}
+function debtSheet(name,total,per){
+  sheet(`${sheetHead('记一笔欠债')}
+    <div class="fld"><label>债权人 / 名目</label><input id="bn" value="${esc(name)}" placeholder="花呗、信用卡、朋友…"></div>
+    <div class="f2">
+      <div class="fld"><label>总金额</label><input id="bt" type="number" value="${total}" step="100"></div>
+      <div class="fld"><label>每期还</label><input id="bp" type="number" value="${per}" step="100"></div>
+    </div>
+    <div class="chips" style="padding-top:2px">
+      ${['花呗','信用卡','朋友','白条','车贷','装修'].map((t,i)=>
+        `<span class="chip c${i%5}" data-pick="${t}">${t}</span>`).join('')}
+    </div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okDebt">确定</button></div>`,()=>{
+    document.querySelectorAll('[data-pick]').forEach(c=>c.onclick=()=>{$('#bn').value=c.dataset.pick;});
+    $('#okDebt').onclick=()=>{
+      const n=$('#bn').value.trim();if(!n)return toast('填个名目');
+      S.debts.push({name:n,total:Math.max(1,+$('#bt').value||1),per:Math.max(1,+$('#bp').value||1),paid:0});
+      save();closeSheet();render();toast('已记入台账');};
+  });
+}
+/* 输入时只刷新数字，不整页重绘（避免光标丢失） */
+function renderKeep(){
+  rebuildCarry();
+  Object.keys(S.open).forEach(kk=>{
+    if(!S.open[kk])return;
+    const m=parseInt(kk.split('-')[1],10);
+    const mb=document.getElementById('mb-'+m);if(!mb)return;
+    const mo=getMonth(kk),C=monthCalc(kk);
+    const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
+    const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
+    const h=mb.querySelector('.mh .msum');
+    if(h)h.innerHTML=`已花 <b>${money(C.spent)}</b> · ${C.balance<0
+      ?`<span style="color:var(--red)">超支 ${money(-C.balance)}</span>`:`结余 <b>${money(C.balance)}</b>`}`;
+    const fv=mb.querySelector('.fold .fv');
+    if(fv)fv.innerHTML=`${money(fixSum)} · <b class="pct">${C.available>0?Math.round(fixSum/C.available*100):0}%</b>`;
+    const fs=mb.querySelector('[id^="flexSum"]');
+    if(fs)fs.textContent=money(flexSum);
+    const pool=C.available-fixSum-flexSum;
+    const sp=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
+    const fl=mb.querySelector('.wkline');
+    if(fl){
+      const sel=fl.querySelector('select');
+      fl.innerHTML=`<span class="fl">${(pool-sp)<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${(pool-sp)<0?'style="color:var(--red)"':''}>${(pool-sp)<0?money(sp-pool):money(pool-sp)}</b></span>
+        <span class="tiny dim">/ 实际 <b class="money">${money(sp)}</b> · ${pool>0?Math.round(sp/pool*100):0}%</span>
+        ${sel?sel.outerHTML:''}`;
+      const ns=fl.querySelector('select');
+      if(ns)ns.onchange=()=>{getMonth(kk).weeks=+ns.value;save();render();};
+    }
+    const wk=mo.weeks||4;
+    mb.querySelectorAll('.wk').forEach((el,i)=>{
+      const bud=budgetOf(kk,pool,i,wk);
+      const em=el.querySelector('.wl em');
+      if(em)em.innerHTML=wkBudgetTxt(pool,bud);});
+  });
+}
+
+
+/* ---- 周预算自定义 ---- */
+function weekSheet(k){
+  const mo=getMonth(k),C=monthCalc(k);
+  const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const pool=Math.max(0,C.available-fixSum-flexSum);
+  const wk=mo.weeks||4;
+  let arr=(S.wbudget[k]&&S.wbudget[k].length===wk)?[...S.wbudget[k]]
+    :Array(wk).fill(Math.round(pool/wk));
+  const draw=()=>{
+    const box=$('#wkRows');if(!box)return;
+    const used=arr.reduce((s,x)=>s+x,0);
+    box.innerHTML=arr.map((v,i)=>`
+      <div class="arow">
+        <div class="between" style="margin-bottom:6px">
+          <span class="tiny">第 ${i+1} 周</span>
+          <span class="tiny"><b class="money" style="font-size:14.5px">${money(v)}</b></span>
+        </div>
+        <input type="range" class="wrl" data-i="${i}" min="0" max="${Math.max(200,pool)}" step="10" value="${v}">
+      </div>`).join('')+
+      `<div class="between tiny" style="margin-top:6px;padding-top:9px;border-top:1px dashed var(--line)">
+        <span class="dim">合计 / 可分配</span>
+        <span style="color:${used>pool?'var(--red)':'var(--muted)'}">${money(used)} / ${money(pool)}</span></div>`;
+    box.querySelectorAll('.wrl').forEach(r=>r.oninput=()=>{arr[+r.dataset.i]=+r.value;draw();});
+  };
+  sheet(`${sheetHead('调整每周预算')}
+    <div class="tiny dim" style="margin-bottom:12px">可分配 ${money(pool)} · 想让哪周多花就拖哪周</div>
+    <div id="wkRows"></div>
+    <div class="btns"><button class="btn" id="evenWk">平分</button>
+      <button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okWk">确定</button></div>`,()=>{
+    draw();
+    $('#evenWk').onclick=()=>{const eq=Math.round(pool/wk);arr=Array(wk).fill(eq);draw();};
+    $('#okWk').onclick=()=>{S.wbudget[k]=arr;save();closeSheet();render();toast('周预算已更新');};
+  });
+}
+/* ---- 标签管理 ---- */
+function tagSheet(){
+  const draw=()=>{
+    const box=$('#tagRows');if(!box)return;
+    box.innerHTML=S.tags.length?`<div class="chips">`+S.tags.map((t,i)=>
+      `<span class="chip c${i%5}">${esc(t)}<b class="tagx" data-rmtag="${esc(t)}">×</b></span>`).join('')+`</div>`
+      :`<div class="empty">还没有标签</div>`;
+    box.querySelectorAll('[data-rmtag]').forEach(b=>b.onclick=()=>{
+      const t=b.dataset.rmtag;
+      if(!confirm('删除标签「'+t+'」？\n已经记过账的明细不受影响。'))return;
+      S.tags=S.tags.filter(x=>x!==t);save();draw();toast('已删除「'+t+'」');});
+  };
+  sheet(`${sheetHead('管理标签')}
+    <div class="tiny dim" style="margin-bottom:11px">点 × 删掉不用的。用得多的会自动排前面。</div>
+    <div id="tagRows"></div>
+    <div class="fld" style="margin-top:13px"><label>新增标签</label><input id="nt" placeholder="例如：猫粮"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">关闭</button>
+      <button class="btn primary" id="okTag">添加</button></div>`,()=>{
+    draw();
+    $('#okTag').onclick=()=>{
+      const v=$('#nt').value.trim();if(!v)return toast('填个名字');
+      if(!S.tags.includes(v))S.tags.push(v);
+      save();$('#nt').value='';draw();render();toast('已添加「'+v+'」');};
+  });
+}
+/* ---- 系统分析 ---- */
+function analyze(k){
+  const mo=getMonth(k),C=monthCalc(k),sal=+S.salary||0;
+  const items=mo.items||[];
+  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const EF=effAlloc(),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  const debtSum=S.debts.reduce((s,d)=>{
+    const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
+    return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
+  const free=sal-saveSum-fixSum-flexSum-debtSum;
+  const P=n=>sal>0?Math.round(n/sal*100):0;
+  const out=[];
+  if(sal<=0){out.push(['','填上薪资才能分析占比']);}
+  else{
+    const r=P(saveSum);
+    if(r>=30)out.push(['good',`攒钱占薪资 <b>${r}%</b>，很猛`]);
+    else if(r>=20)out.push(['good',`攒钱占薪资 <b>${r}%</b>，达标（建议 20% 以上）`]);
+    else if(r>=10)out.push(['warn',`攒钱只占薪资 <b>${r}%</b>，偏少，建议提到 20%`]);
+    else out.push(['bad',`攒钱只占薪资 <b>${r}%</b>，基本没存下来`]);
+    const sorted=items.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0));
+    if(sorted.length){
+      const top=sorted[0],tp=P(+top.amt||0),share=fixSum>0?Math.round((+top.amt||0)/fixSum*100):0;
+      out.push([tp>35?'bad':tp>20?'warn':'good',
+        `最大开销是「${esc(top.tag)}」${money(+top.amt||0)}，占薪资 <b>${tp}%</b>、占固定开销 <b>${share}%</b>${tp>35?'，明显偏高':''}`]);
+    }
+    const rent=items.find(i=>i.tag==='房租');
+    if(rent){const rp=P(+rent.amt||0);
+      out.push([rp>35?'bad':'good',`房租占薪资 <b>${rp}%</b>${rp>35?'，超过建议的 30% 了':''}`]);}
+    if(flexSum>0)out.push(['',
+      `浮动开销 ${money(flexSum)}（${P(flexSum)}%）也算了进去，这部分不是每月都有`]);
+    if(free<0)out.push(['bad',`按这个花法每月倒挂 <b>${money(-free)}</b>：得少存点或砍开销`]);
+    else out.push(['good',`扣完存储和两类开销，还剩 <b>${money(free)}</b> 自由支配（${P(free)}%）`]);
+  }
+  if(C.balance<0)out.push(['bad',`这个月已经超支 <b>${money(-C.balance)}</b>`]);
+  if(debtSum>0)out.push(['warn',`本月要还 <b>${money(debtSum)}</b>，占薪资 ${P(debtSum)}%`]);
+  return out;
+}
+
+/* ---------------- 计算 ---------------- */
+/* 只存月份数字，年份永远取当年，跨年不会卡在去年 */
+function calcKey(){return yearKey()+'-'+pad(+S.calcM||parseInt(curKey().split('-')[1],10));}
+function vCalc(){
+  rebuildCarry();
+  const y=yearKey();
+  const mk=calcKey(), m=+mk.split('-')[1];
+  const mo=getMonth(mk),C=monthCalc(mk);
+  const items=mo.items||[];
+  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexList=mo.flex||[];
+  const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
+  const EF=effAlloc(),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  const debtList=S.debts.filter(d=>((+d.total||0)-Math.min(+d.total||0,(d.paid||0)*(+d.per||0)))>0);
+  const debtSum=debtList.reduce((s,d)=>s+(+d.per||0),0);
+  const sal=+S.salary||0;
+  const dreamList=S.dreams.filter(d=>(d.monthly||0)>0);
+  const dreamSum=dreamList.reduce((s,d)=>s+(+d.monthly||0),0);
+  const wk=mo.weeks||4;
+  /* 薪资 − 存储 − 梦想基金 = 本月生活费；再扣固定 + 浮动开销后按周切 */
+  const live=sal-saveSum-dreamSum-debtSum;
+  const pool=live-fixSum-flexSum;
+  const perWk=wk>0?pool/wk:0;
+  const P=n=>sal>0?Math.round(Math.max(0,n)/sal*100):0;
+  const PL=n=>live>0?Math.round(Math.max(0,n)/live*100):0;
+  const written=(+mo.total||0)===Math.round(live)&&live>0;
+  const li=(n,name,amt,extra)=>`<div class="fixli"><i style="background:${FIXC[n%FIXC.length]}"></i>
+      <span>${esc(name)}</span><b>${money(amt)}${extra||''}</b></div>`;
+
+  let h=`
+  <div class="hero">
+    <div class="lbl">${m} 月 · 本该怎么花</div>
+    <div class="big">${money(sal)}</div>
+    <div class="tiny dim">${sal>0?'先扣该存的，剩下的就是生活费':'先填薪资，下面会自动算'}</div>
+  </div>
+  ${m!==parseInt(curKey().split('-')[1],10)?`<div class="card" style="padding:9px 12px;margin-top:8px;
+    background:#FFF7E6;border-color:#FDE68A">
+    <div class="tiny" style="color:#92400E">你现在看的是 <b>${m} 月</b>，不是本月（${
+      parseInt(curKey().split('-')[1],10)} 月）。写进去的也是 ${m} 月。</div></div>`:''}
+  <div class="card" style="padding:13px 14px">
+    <div class="between">
+      <span class="tiny muted">${m} 月薪资</span>
+      <input id="calcSal" class="money" type="text" inputmode="decimal" value="${S.salary||''}" placeholder="0"
+        style="width:120px;text-align:right;padding:6px 9px">
+    </div>
+    <div class="between" style="margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)">
+      <span class="tiny muted">算哪个月</span>
+      <select id="calcMonth" style="width:auto;padding:6px 8px;font-size:13px">
+        ${Array.from({length:12},(_,i)=>i+1).map(n=>
+          `<option value="${n}" ${n===m?'selected':''}>${n} 月</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+
+  if(sal<=0){
+    h+=`<div class="card" style="padding:14px">
+      <div class="tiny muted" style="line-height:1.6">先在上面填月薪资，下面会自动按「存储 → 梦想 → 开销」一层层扣，
+        算出这月本来该怎么花。总览里也能填。</div></div>`;
+  }else{
+    h+=`<div class="sec"><h2>一层一层扣</h2><span class="hint">✏ 改明细</span></div>
+    <div class="card" style="padding:4px 14px 12px">
+      <div class="flow minus">
+        <span class="fn">固定存储（L1+L2+L3+长期）</span>
+        <span class="fv">−${money(saveSum)}</span><span class="fp">${P(saveSum)}%</span>
+        <span class="fg"><button class="adj" id="calcAlloc" title="改总额和四档">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${LEVELS.map((l,n)=>li(n,l.n,EF[l.k]||0)).join('')}</div>
+
+      <div class="flow minus">
+        <span class="fn">梦想基金</span>
+        <span class="fv">−${money(dreamSum)}</span><span class="fp">${P(dreamSum)}%</span>
+        <span class="fg"><button class="adj" id="calcDream" title="改各项目月投">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${dreamList.length?dreamList.map((d,n)=>li(n,d.name,+d.monthly||0)).join('')
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}</div>
+
+      <div class="flow minus">
+        <span class="fn">固定开销</span>
+        <span class="fv">−${money(fixSum)}</span><span class="fp">${P(fixSum)}%</span>
+        <span class="fg"><button class="adj" id="calcFix" title="编辑固定开销">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${items.length?items.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+        .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>点上面 ✏ 一次性填进去</span></div>`}</div>
+
+      <div class="flow minus">
+        <span class="fn">浮动开销</span>
+        <span class="fv">−${money(flexSum)}</span><span class="fp">${P(flexSum)}%</span>
+        <span class="fg"><button class="adj" id="calcFlex" title="编辑浮动开销">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${flexList.length?flexList.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+        .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>人情、看病、修车…不固定的，点 ✏ 写进去</span></div>`}</div>
+
+      ${debtSum>0?`<div class="flow minus">
+        <span class="fn">本月还款</span>
+        <span class="fv">−${money(debtSum)}</span><span class="fp">${P(debtSum)}%</span>
+        <span class="fg"></span>
+      </div>
+      <div class="sub" style="display:block">${debtList.map((d,n)=>li(n,d.name,+d.per||0)).join('')}</div>`:''}
+
+      <div class="flow total">
+        <span class="fn">本月生活费</span>
+        <span class="fv" style="color:${live<0?'var(--red)':'var(--green)'}">${money(live)}</span>
+        <span class="fp">${P(live)}%</span><span class="fg"></span>
+      </div>
+      <div class="flow hl" style="border-bottom:none">
+        <span class="fn">扣完这些</span>
+        <span class="fv" style="color:${pool<0?'var(--red)':'var(--green)'}">${money(Math.abs(pool))}</span>
+        <span class="fp">${pool<0?'不够':'周均 '+money(perWk)}</span>
+        <span class="fg"><button class="adj" data-cwk="1">${wk} 周</button></span>
+      </div>
+    </div>
+
+    <div class="sec"><h2>写入 ${m} 月生活费</h2><span class="hint">${written?'已同步':'算好就送过去'}</span></div>
+    <div class="card" style="padding:12px 14px">
+      <div class="between tiny" style="margin-bottom:8px;gap:8px;flex-wrap:nowrap">
+        <span class="muted" style="white-space:nowrap">本月可花
+          <b class="money" style="font-size:14.5px;color:var(--text)">${money(live)}</b></span>
+        <span style="white-space:nowrap;display:flex;align-items:center;gap:6px">
+          <span class="muted">每周 <b class="money" style="color:var(--text)">${money(perWk)}</b></span>
+          ${written?'<span class="pill g">已同步</span>':'<span class="pill r">未同步</span>'}</span>
+      </div>
+      <div class="tiny dim" style="margin-bottom:10px">本月可花是还没扣开销的总数，每周是扣掉固定 + 浮动开销后能花的。
+        写过去以后，生活费页记实际花了多少，两边一对就知道差在哪。</div>
+      <div class="row" style="gap:8px">
+        <button class="btn ${written?'':'primary'}" id="applyLive" style="flex:1">写入生活费</button>
+        <button class="btn" id="bookSave" ${(S.booked||{})[mk]?'style="opacity:.5"':''}>${
+          (S.booked||{})[mk]?m+' 月已入账':'存入 '+m+' 月'}</button>
+      </div>
+    </div>
+
+    <div class="sec"><h2>系统分析</h2></div>
+    <div class="card" style="padding:12px 14px">
+      ${analyze(mk).map(([c,t])=>`<div class="al ${c}" style="display:flex;gap:8px;font-size:12px;
+        color:var(--muted);margin-bottom:7px;line-height:1.45"><i style="width:6px;height:6px;border-radius:50%;
+        margin-top:6px;flex:0 0 auto;background:${c==='good'?'var(--green)':c==='warn'?'#D97706':c==='bad'?'var(--red)':'var(--dim)'}"></i>
+        <span>${t}</span></div>`).join('')}
+    </div>`;
+  }
+  h+=`<div style="height:6px"></div>`;
+  return h;
+}
+
+/* ---- 存储总额 + 四档同屏调整（改了会同步到总览） ---- */
+function saveSheet(){
+  const tmp={};LEVEL_KEYS.forEach(x=>tmp[x]=S.alloc[x]||0);
+  /* 记住进入弹窗时的比例，输多少就按这个比例摊，不会逐字缩成 0 */
+  const ratio={};LEVEL_KEYS.forEach(x=>ratio[x]=tmp[x]);
+  let base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0);
+  if(!base0){LEVEL_KEYS.forEach(x=>ratio[x]=BASE[x]||0);
+    base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0)||1;}
+  let total=LEVEL_KEYS.reduce((s,x)=>s+tmp[x],0);
+  const sal=+S.salary||0;
+  const apply=n=>{
+    let s=0;LEVEL_KEYS.forEach(k=>{tmp[k]=Math.round(ratio[k]/base0*n);s+=tmp[k];});
+    if(s!==n){
+      const big=LEVEL_KEYS.slice().sort((a,b)=>(ratio[b]||0)-(ratio[a]||0))[0];
+      tmp[big]=Math.max(0,(tmp[big]||0)+(n-s));
+    }
+    total=LEVEL_KEYS.reduce((s,k)=>s+(tmp[k]||0),0);};
+  const sync=()=>{LEVEL_KEYS.forEach(k=>ratio[k]=tmp[k]||0);
+    base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0)||1;};
+  const draw=()=>{
+    const box=$('#svRows');if(!box)return;
+    const used=LEVEL_KEYS.reduce((s,x)=>s+tmp[x],0);
+    box.innerHTML=LEVELS.map(lv=>`
+      <div class="arow" style="--accentC:${lv.c}">
+        <div class="between" style="margin-bottom:6px">
+          <span class="tiny"><span class="dot" style="background:${lv.c};margin-right:5px"></span>${lv.n}</span>
+          <span class="tiny"><b class="money" style="font-size:14.5px">${money(tmp[lv.k]||0)}</b>
+            <b class="pct" style="margin-left:5px">${total>0?Math.round((tmp[lv.k]||0)/total*100):0}%</b></span>
+        </div>
+        <input type="range" class="srl" data-k="${lv.k}" min="0" max="${Math.max(100,used)}" step="50" value="${tmp[lv.k]||0}">
+      </div>`).join('')
+      +`<div class="between tiny" style="margin-top:8px;padding-top:9px;border-top:1px dashed var(--line)">
+        <span class="dim">合计</span>
+        <span style="color:${used>total?'var(--red)':'var(--muted)'}">${money(used)} / ${money(total)}</span></div>`;
+    const pc=$('#svPct');
+    if(pc&&sal>0)pc.textContent=Math.round(used/sal*100)+'%';
+    box.querySelectorAll('.srl').forEach(r=>r.oninput=()=>{
+      distribute(tmp,r.dataset.k,+r.value,used||total);
+      total=LEVEL_KEYS.reduce((s,k)=>s+(tmp[k]||0),0);
+      sync();draw();});
+  };
+  const head=()=>{
+    const el=$('#svHead');if(!el)return;
+    const used=LEVEL_KEYS.reduce((s,x)=>s+tmp[x],0);
+    el.innerHTML=`<div class="edHead">
+      <div class="r1"><span class="tiny muted">这个月存多少</span>
+        <input id="svTot" type="text" inputmode="decimal" class="money" value="${used||S.monthly||0}"
+          style="width:118px;text-align:right;padding:5px 8px;font-size:17px;font-weight:700"></div>
+      <div class="between tiny" style="margin-top:8px">
+        <span class="dim">直接输入 · 基准 ${money(S.monthly)} 不变</span>
+        <span class="dim">${sal>0?'占薪资 <b class="pct" id="svPct">'+Math.round(used/sal*100)+'%</b>':'填了薪资才看得到占比'}</span>
+      </div></div>`;
+    const t=$('#svTot');
+    if(t)t.oninput=()=>{apply(Math.max(0,parseFloat(t.value)||0));draw();};
+  };
+  sheet(`${sheetHead('每月存储')}${''}
+    <div id="svHead"></div>
+    <div class="tiny" style="color:var(--muted);margin-bottom:7px">上面直接填这个月要存多少，四档按比例自动分摊；
+      也可以单独拖某一档，其余三档自动让位</div>
+    <div id="svRows"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okSv">确定</button></div>`,()=>{
+    head();draw();
+    $('#okSv').onclick=()=>{
+      apply(Math.max(0,parseFloat($('#svTot').value)||0));
+      LEVEL_KEYS.forEach(k=>S.alloc[k]=tmp[k]||0);
+      save();closeSheet();render();
+      toast('这个月存 '+money(LEVEL_KEYS.reduce((s,k)=>s+(S.alloc[k]||0),0))+'，总览已同步');};
+  });
+}
+
+/* ---- 梦想基金各项目月投 ---- */
+function dreamEditSheet(){
+  const tmp=S.dreams.map(d=>({id:d.id,name:d.name,v:+d.monthly||0}));
+  const sal=+S.salary||0;
+  const draw=()=>{
+    const box=$('#dmRows');if(!box)return;
+    const sum=tmp.reduce((s,x)=>s+x.v,0);
+    box.innerHTML=tmp.length?tmp.map((d,n)=>`
+      <div class="edli"><i style="background:${FIXC[n%FIXC.length]}"></i>
+        <span class="nm">${esc(d.name)}</span>
+        <input type="text" inputmode="decimal" class="dmi" data-i="${n}" value="${d.v||''}" placeholder="0">
+        <span class="pctv">${sal>0?'<b class="pct">'+Math.round(d.v/sal*100)+'%</b>':''}</span></div>`).join('')
+      :`<div class="empty">总览里还没有梦想项目</div>`;
+    const hd=$('#dmHead');
+    if(hd)hd.innerHTML=`<div class="edHead"><div class="r1">
+        <span class="tiny muted">合计每月</span><b class="big">${money(sum)}</b></div>
+      <div class="tiny dim" style="margin-top:4px">${sal>0?`占薪资 <b class="pct">${Math.round(sum/sal*100)}%</b> · 这部分注定会花掉，不计入储蓄`:'填了薪资才看得到占比'}</div></div>`;
+    box.querySelectorAll('.dmi').forEach(el=>{
+      el.onfocus=()=>{if(!redrawing)el.select();};
+      el.oninput=()=>{
+        tmp[+el.dataset.i].v=num(el.value);
+        const end=el.value.length;draw();
+        const nx=box.querySelector(`.dmi[data-i="${el.dataset.i}"]`);
+        if(nx){redrawing=true;nx.focus();
+          try{nx.setSelectionRange(end,end);}catch(e){}redrawing=false;}};});
+  };
+  sheet(`${sheetHead('梦想基金 · 每月投入')}
+    <div id="dmHead"></div>
+    <div id="dmRows"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okDm">确定</button></div>`,()=>{
+    draw();
+    $('#okDm').onclick=()=>{
+      tmp.forEach(t=>{const d=S.dreams.find(x=>x.id===t.id);if(d)d.monthly=t.v;});
+      save();closeSheet();render();toast('梦想基金月投已更新');};
+  });
+}
+
+/* ---- 开销编辑：一次性填完，上面看占比，下面看周均 ----
+   kind = 'fix' 固定开销（mo.items） / 'flex' 浮动开销（mo.flex） ---- */
+function fixEditSheet(k,kind){
+  kind=kind||'fix';
+  const isFix=kind==='fix', TITLE=isFix?'固定开销':'浮动开销';
+  const mo=getMonth(k);
+  const tmp=(isFix?(mo.items||[]):(mo.flex||[])).map(i=>({tag:i.tag,amt:+i.amt||0,note:i.note||''}));
+  const other=(isFix?(mo.flex||[]):(mo.items||[])).reduce((s,i)=>s+(+i.amt||0),0);
+  const m=parseInt(k.split('-')[1],10);
+  const wk=mo.weeks||4;
+  const calc=()=>{
+    const EF=effAlloc(),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+    const dreamSum=S.dreams.reduce((s,d)=>s+(+d.monthly||0),0);
+    const debtSum=S.debts.reduce((s,d)=>{
+      const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
+      return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
+    const live=(+S.salary||0)-saveSum-dreamSum-debtSum;
+    const mine=tmp.reduce((s,i)=>s+i.amt,0);
+    const all=mine+other;
+    return{live,mine,all,left:live-all,perWk:wk>0?(live-all)/wk:0,
+      pAll:live>0?Math.round(all/live*100):0,
+      pSal:(+S.salary||0)>0?Math.round(all/(+S.salary)*100):0};
+  };
+  const draw=()=>{
+    const box=$('#fxRows');if(!box)return;
+    const c=calc(),sal=+S.salary||0;
+    box.innerHTML=tmp.length?tmp.slice().sort((a,b)=>b.amt-a.amt).map(i=>{
+      const n=tmp.indexOf(i);
+      return `<div class="edli"><i style="background:${FIXC[n%FIXC.length]}"></i>
+        <span class="nm">${esc(i.tag)}</span>
+        <input type="text" inputmode="decimal" class="fmi" data-n="${n}" value="${i.amt||''}" placeholder="0">
+        <button class="xbtn fmdel" data-n="${n}" style="width:24px;height:24px">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`;}).join('')
+      :`<div class="empty" style="padding:10px 0">点下面的名目加进来，或者新建</div>`;
+    const hd=$('#fxHead');
+    if(hd)hd.innerHTML=`<div class="edHead">
+      <div class="r1"><span class="tiny muted">${TITLE}合计</span><b class="big">${money(c.mine)}</b></div>
+      <div class="tiny dim" style="margin-top:5px">两类开销共 <b class="money">${money(c.all)}</b>
+        · 占本月生活费 <b class="pct">${c.pAll}%</b>${sal>0?` · 占薪资 <b class="pct">${c.pSal}%</b>`:''}</div></div>`;
+    const tl=$('#fxTail');
+    if(tl)tl.innerHTML=`<div class="edTail">
+      <div class="r"><span>本月生活费</span><b>${money(c.live)}</b></div>
+      <div class="r"><span>扣完固定 + 浮动</span><b style="color:${c.left<0?'var(--red)':''}">${money(c.left)}</b></div>
+      <div class="r last"><span>每周能花（${wk} 周）</span><b style="color:${c.left<0?'var(--red)':''}">${money(c.perWk)}</b></div></div>`;
+    box.querySelectorAll('.fmi').forEach(el=>{
+      el.onfocus=()=>{if(!redrawing)el.select();};
+      el.oninput=()=>{
+        tmp[+el.dataset.n].amt=num(el.value);
+        const end=el.value.length;draw();
+        const nx=box.querySelector(`.fmi[data-n="${el.dataset.n}"]`);
+        if(nx){redrawing=true;nx.focus();
+          try{nx.setSelectionRange(end,end);}catch(e){}redrawing=false;}}});
+    box.querySelectorAll('.fmdel').forEach(b=>b.onclick=()=>{
+      tmp.splice(+b.dataset.n,1);draw();});
+    document.querySelectorAll('#fxTags .chip').forEach(c=>c.onclick=()=>{
+      tmp.push({tag:c.dataset.t,amt:0,note:''});draw();
+      const all=box.querySelectorAll('.fmi'),last=all[all.length-1];
+      if(last){redrawing=true;last.focus();redrawing=false;}});
+  };
+  sheet(`${sheetHead(m+' 月 · '+TITLE)}
+    <div id="fxHead"></div>
+    <div id="fxRows"></div>
+    <div class="chips" id="fxTags" style="margin-top:10px">
+      ${(isFix?tagFreq().slice(0,8):FLEXTAGS.slice(0,8)).map((t,i)=>
+        `<span class="chip c${i%5}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
+      <span class="chip add" id="fxNew">+ 新名目</span>
+    </div>
+    <div id="fxTail"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okFx">确定</button></div>`,()=>{
+    draw();
+    const nv=$('#fxNew');
+    if(nv)nv.onclick=()=>{const n=prompt('开销名目',isFix?'水电':'人情');
+      if(n==null||!n.trim())return;tmp.push({tag:n.trim(),amt:0,note:''});draw();};
+    $('#okFx').onclick=()=>{
+      if(isFix)mo.items=tmp.filter(i=>i.amt>0||i.tag);
+      else mo.flex=tmp.filter(i=>i.amt>0||i.tag);
+      save();closeSheet();render();toast(m+' 月'+TITLE+'已更新');};
+  });
+}
+
+function bindCalc(){
+  const mk=calcKey();
+  const cs=$('#calcSal');
+  if(cs)cs.oninput=()=>{S.salary=num(cs.value);save();renderFocus('#calcSal');};
+  const cm=$('#calcMonth');
+  if(cm)cm.onchange=()=>{S.calcM=+cm.value;save();render();};
+  const ca=$('#calcAlloc');if(ca)ca.onclick=()=>saveSheet();
+  const cd=$('#calcDream');if(cd)cd.onclick=()=>dreamEditSheet();
+  const cf=$('#calcFix');if(cf)cf.onclick=()=>fixEditSheet(mk,'fix');
+  const cfx=$('#calcFlex');if(cfx)cfx.onclick=()=>fixEditSheet(mk,'flex');
+  const al=$('#applyLive');
+  if(al)al.onclick=()=>{
+    const mk=calcKey(),mo=getMonth(mk),r=calcLive(mk);
+    mo.total=Math.round(r.live);
+    const wk=mo.weeks||4;
+    /* 用户自己调过周预算就别覆盖，那是有意为之 */
+    const kept=Array.isArray(S.wbudget[mk])&&S.wbudget[mk].length===wk;
+    if(!kept)S.wbudget[mk]=Array(wk).fill(Math.max(0,Math.round((r.live-r.fixSum-r.flexSum)/wk)));
+    save();render();
+    toast(`${parseInt(mk.split('-')[1],10)} 月已写入 ${money(mo.total)}${kept?' · 你调过的周预算保持原样':''}`);};
+  const bs=$('#bookSave');
+  if(bs)bs.onclick=()=>{
+    const ck=calcKey();
+    S.booked=S.booked||{};
+    if(S.booked[ck]){
+      if(!confirm(`${parseInt(ck.split('-')[1],10)} 月已经入过账了。再点一次会重复累加，确定要继续吗？`))return;
+    }
+    const EF=effAlloc();
+    LEVEL_KEYS.forEach(k=>S.saved[k]=(S.saved[k]||0)+(EF[k]||0));
+    S.dreams.forEach(d=>{if(+d.monthly>0)d.saved=(d.saved||0)+(+d.monthly||0);});
+    S.booked[ck]=true;
+    save();render();toast('本月实投已入账');};
+  document.querySelectorAll('[data-cwk]').forEach(b=>b.onclick=()=>{
+    const mk=calcKey();
+    sheet(`${sheetHead('生活费分几周')}
+      <div class="chips">${WEEK_OPTS.map(n=>
+        `<span class="chip" data-setwk="${n}">${n} 周</span>`).join('')}</div>`,()=>{
+      document.querySelectorAll('[data-setwk]').forEach(c=>c.onclick=()=>{
+        getMonth(mk).weeks=+c.dataset.setwk;save();closeSheet();render();});
+    });});
+}
+function calcLive(mk){
+  const mo=getMonth(mk);
+  const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const EF=effAlloc(),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  const dreamSum=S.dreams.reduce((s,d)=>s+(+d.monthly||0),0);
+  const debtSum=S.debts.reduce((s,d)=>{
+    const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
+    return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
+  const live=(+S.salary||0)-saveSum-dreamSum-debtSum;
+  const wk=mo.weeks||4;
+  return{live,perWk:wk>0?(live-fixSum-flexSum)/wk:0,wk,fixSum,flexSum,saveSum,dreamSum};
+}
+
+
+/* ---------------- 弹层 ---------------- */
+function sheet(html,after){$('#sheet').innerHTML=html;$('#mask').classList.add('on');if(after)after();}
+function closeSheet(){$('#mask').classList.remove('on');}
+$('#mask').onclick=e=>{if(e.target.id==='mask')closeSheet();};
+window.closeSheet=closeSheet;
+
+window.onerror=(m,src,l)=>{
+  const el=document.getElementById('main');
+  if(el)el.innerHTML=`<div class="card" style="color:#DC3B41">页面出错了：${m}<br><span class="tiny dim">第 ${l} 行</span></div>`;
+  return false;
+};
+render();
+
+/* ---- PWA：注册 Service Worker，支持安装到桌面/主屏幕 ---- */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
