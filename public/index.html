@@ -170,6 +170,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
 
 /* ---- 周 ---- */
 .wk{display:flex;align-items:center;gap:7px;padding:6px 0}
+.wkHit{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;
+  color:var(--muted);background:rgba(47,107,255,.07);border:1px dashed rgba(47,107,255,.35);
+  border-radius:10px;padding:7px 10px;margin:4px 0 2px}
+.wkHit .hit{cursor:pointer;font-weight:600;white-space:nowrap}
+.wkHit .dim{cursor:pointer;white-space:nowrap}
 .wk .wl{width:64px;flex:0 0 auto}
 .wk .wl b{display:block;font-size:12.5px;font-weight:600}
 .wk .wl em{display:block;font-style:normal;font-size:10px;color:var(--dim);margin-top:1px}
@@ -325,16 +330,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
 /* ================= 常量 ================= */
 const KEY='cuanqian.v8';
 const LEVELS=[
-  {k:'L1', n:'L1 波动金',   d:'低风险 · 衣柜添衣、家电坏了、临时想买 · 要攒但不计入总目标', target:2000,   c:'#0284C7'},
-  {k:'L2', n:'L2 失业保底', d:'中风险 · 失业后约 6 个月薪资的安全垫',   target:20000,  c:'#0D9488'},
-  {k:'L3', n:'L3 紧急医疗', d:'中高风险 · 家人住院、手术急需用钱',      target:30000,  c:'#D97B06'},
-  {k:'LG', n:'长期存储',    d:'基本不动 · 真正的积蓄',                  target:450000, c:'#7C4DEE'}
+  {k:'L1', n:'L1 波动金',   d:'低风险 · 衣柜添衣、家电坏了、临时想买 · 要攒但不计入总目标', target:2000,   c:'#0284C7', where:'余额'},
+  {k:'L2', n:'L2 失业保底', d:'中风险 · 失业后约 6 个月薪资的安全垫',   target:20000,  c:'#0D9488', where:'余额宝.攒着'},
+  {k:'L3', n:'L3 紧急医疗', d:'中高风险 · 家人住院、手术急需用钱',      target:30000,  c:'#D97B06', where:'余额宝.攒着'},
+  {k:'LG', n:'长期存储',    d:'基本不动 · 真正的积蓄',                  target:450000, c:'#7C4DEE', where:'银行卡定存'}
 ];
 const LEVEL_KEYS=LEVELS.map(l=>l.k);
 /* 总目标只算 L2+L3+长期（2万+3万+45万=50万）；L1 波动金照样攒，但不占总目标额度 */
 const BASE={L1:300,L2:900,L3:400,LG:400};
 const GOAL_KEYS=['L2','L3','LG'];
 const TOTAL_GOAL=500000;
+/* 浮动开销的常用名目（不是每月都有的那种）。已并入标签库统一管理：
+   首次启动会合并进 S.tags，之后就归标签库管，可以删。
+   注意：这行必须在 normalize() 之前声明，否则会触发 TDZ 崩溃。 */
+const FLEXTAGS=['人情','看病','修车','送礼','旅行','衣服','数码','维修','学习','罚款'];
+/* 梦想基金的钱放在哪（想每个项目不一样，就把这里清空，再去 dreamSheet 加字段） */
+const DREAM_WHERE='余额宝.可用';
 const DAYS_PER_MONTH=30.44;
 const WEEK_OPTS=[1,2,3,4,5];
 
@@ -555,6 +566,9 @@ function normalize(s){
   if(!s.months)s.months={};
   if(!s.debts)s.debts=[];
   if(!s.tags||!s.tags.length)s.tags=defState().tags;
+  /* 标签统一：把写死的浮动名目并进标签库，只做一次。
+     并进去之后就归标签库管 —— 你删掉它就不会再被加回来。 */
+  if(!s.tagsMerged){FLEXTAGS.forEach(t=>{if(!s.tags.includes(t))s.tags.push(t);});s.tagsMerged=true;}
   if(!s.alloc)s.alloc={...BASE};
   if(!s.saved)s.saved={L1:0,L2:0,L3:0,LG:0};
   if(!s.initial)s.initial={L1:0,L2:0,L3:0,LG:0};
@@ -644,8 +658,6 @@ const PEN=`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="c
   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/>
   <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
 const FIXC=['#2563EB','#0F766E','#B45309','#6D28D9','#BE123C','#0369A1'];
-/* 浮动开销的常用名目：不是每个月都有的那种 */
-const FLEXTAGS=['人情','看病','修车','送礼','旅行','衣服','数码','维修','学习','罚款'];
 
 /* 薪资去向占比：攒钱 / 生活费 / 自由支配 */
 function shareOf(EF,sum){
@@ -824,7 +836,7 @@ function vOverview(){
     <div class="lv">
       <div class="head">
         <span class="dot" style="background:${lv.c}"></span>
-        <span class="name">${lv.n}</span>
+        <span class="name">${lv.n}${lv.where?` <b style="color:${lv.c};font-size:11px;white-space:nowrap">存 ${lv.where}</b>`:''}</span>
         ${full?`<span class="pill g">已满</span>`:''}
         <span class="amt money">${money(sv)} / ${money(lv.target)}</span>
       </div>
@@ -872,7 +884,7 @@ function vOverview(){
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
         </span>
       </div>
-      <div class="tiny dim" style="margin-top:2px">目标 ${money(d.target)} · 目标日 ${fmtDate(d.deadline)}</div>
+      <div class="tiny dim" style="margin-top:2px">目标 ${money(d.target)} · 目标日 ${fmtDate(d.deadline)}${DREAM_WHERE?` · <b style="color:#0D9488">存 ${DREAM_WHERE}</b>`:''}</div>
       <div class="track">
         <i class="fill" style="width:${e.pct}%"></i>
         <i class="mark" style="left:100%"></i>
@@ -1309,16 +1321,37 @@ function bindLiving(){
     getMonth(el.dataset.m).total=num(el.value);save();renderKeep();});
   document.querySelectorAll('.wkSel').forEach(el=>el.onchange=()=>{
     getMonth(el.dataset.wk).weeks=+el.value;save();render();});
+  document.querySelectorAll('[data-wadj]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();weekSheet(el.dataset.wadj);});
   document.querySelectorAll('[data-wd]').forEach(el=>el.oninput=()=>{
     const mo=getMonth(el.dataset.wd);mo.wdata=mo.wdata||[];
     const i=+el.dataset.w;mo.wdata[i]={...(mo.wdata[i]||{}),spent:+el.value||0};save();renderKeep();});
   document.querySelectorAll('[data-wdd]').forEach(el=>el.oninput=()=>{
     const mo=getMonth(el.dataset.wdd);mo.wdata=mo.wdata||[];
-    const i=+el.dataset.w;mo.wdata[i]={...(mo.wdata[i]||{}),desc:el.value};save();});
+    const i=+el.dataset.w;mo.wdata[i]={...(mo.wdata[i]||{}),desc:el.value};save();
+    /* 备注识别：备注里出现标签词 + 金额时提示一键归入开销。只提示不自动写，点了才算 */
+    const wkBox=el.closest('.wk');if(!wkBox)return;
+    const old=wkBox.parentElement.querySelector('.wkHit');if(old)old.remove();
+    const v=el.value;if(!v)return;
+    const tag=S.tags.find(t=>v.includes(t));
+    const num=(v.match(/\d+(?:\.\d+)?/)||[])[0];
+    if(!tag||!num)return;
+    const amt=Math.round(parseFloat(num)*100)/100;
+    if((mo.flex||[]).some(x=>x.tag===tag&&(+x.amt||0)===amt))return; /* 已经加过的不重复提示 */
+    const bar=document.createElement('div');
+    bar.className='wkHit';
+    bar.innerHTML=`<span>备注里识别到「${esc(tag)}」¥${amt}</span>
+      <span style="display:flex;gap:10px;flex:0 0 auto">
+        <b class="hit" style="color:#2F6BFF">加到开销</b>
+        <span class="dim">忽略</span></span>`;
+    bar.querySelector('.hit').onclick=e=>{e.stopPropagation();
+      mo.flex=mo.flex||[];mo.flex.push({tag:tag,amt:amt,note:v});
+      save();bar.remove();render();toast('已加到「'+tag+'」'+money(amt));};
+    bar.querySelector('.dim').onclick=e=>{e.stopPropagation();bar.remove();};
+    wkBox.insertAdjacentElement('afterend',bar);
+  });
   document.querySelectorAll('[data-cpy]').forEach(el=>el.onclick=e=>{
     e.stopPropagation();reportSheet(y+'-'+pad(el.dataset.cpy));});
-  document.querySelectorAll('[data-wadj]').forEach(el=>el.onclick=e=>{
-    e.stopPropagation();weekSheet(el.dataset.wadj);});
   document.querySelectorAll('[data-cw]').forEach(el=>el.onclick=()=>toast(
     el.dataset.cw+'：'+money(+el.dataset.amt)+' · '+el.dataset.n+' 次'));
   const ad=$('#addDebt');
@@ -1396,6 +1429,32 @@ function renderKeep(){
 }
 
 
+/* ---- 标签花费排名：本月固定 + 浮动按金额从多到少 ---- */
+function tagStatSheet(k){
+  const mo=getMonth(k);
+  const map={};
+  [...(mo.items||[]),...(mo.flex||[])].forEach(i=>{
+    const t=i.tag||'其他';map[t]=(map[t]||0)+(+i.amt||0);});
+  const list=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  const total=list.reduce((s,x)=>s+x[1],0);
+  const m=parseInt(k.split('-')[1],10);
+  sheet(`${sheetHead(m+' 月 · 标签花费')}
+    <div class="tiny dim" style="margin-bottom:11px">${list.length?
+      '共 <b class="money">'+money(total)+'</b> · 花得最多的在最上面':'这个月还没记账。点 ✏ 加一笔就有了。'}</div>
+    ${list.map(([t,v],i)=>{
+      const pct=total>0?Math.round(v/total*100):0;
+      return `<div style="padding:8px 2px ${i?'border-top:1px dashed var(--line)':''}">
+        <div class="between">
+          <span style="font-size:13.5px">${esc(t)}</span>
+          <span style="display:flex;align-items:center;gap:8px">
+            <b class="money" style="font-size:14.5px">${money(v)}</b>
+            <span class="tiny dim" style="width:34px;text-align:right">${pct}%</span>
+          </span>
+        </div>
+        <div class="bar sm" style="margin-top:5px"><i style="width:${pct}%"></i></div>
+      </div>`;}).join('')}
+    <div class="btns"><button class="btn" onclick="closeSheet()">关闭</button></div>`);
+}
 /* ---- 周预算自定义 ---- */
 function weekSheet(k){
   const mo=getMonth(k),C=monthCalc(k);
@@ -1442,7 +1501,7 @@ function tagSheet(){
     box.querySelectorAll('[data-rmtag]').forEach(b=>b.onclick=()=>{
       const t=b.dataset.rmtag;
       if(!confirm('删除标签「'+t+'」？\n已经记过账的明细不受影响。'))return;
-      S.tags=S.tags.filter(x=>x!==t);save();draw();toast('已删除「'+t+'」');});
+      S.tags=S.tags.filter(x=>x!==t);save();draw();render();toast('已删除「'+t+'」');});
   };
   sheet(`${sheetHead('管理标签')}
     <div class="tiny dim" style="margin-bottom:11px">点 × 删掉不用的。用得多的会自动排前面。</div>
@@ -1813,7 +1872,7 @@ function fixEditSheet(k,kind){
     <div id="fxHead"></div>
     <div id="fxRows"></div>
     <div class="chips" id="fxTags" style="margin-top:10px">
-      ${(isFix?tagFreq().slice(0,8):FLEXTAGS.slice(0,8)).map((t,i)=>
+      ${S.tags.map((t,i)=>
         `<span class="chip c${i%5}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
       <span class="chip add" id="fxNew">+ 新名目</span>
     </div>
@@ -1823,7 +1882,9 @@ function fixEditSheet(k,kind){
     draw();
     const nv=$('#fxNew');
     if(nv)nv.onclick=()=>{const n=prompt('开销名目',isFix?'水电':'人情');
-      if(n==null||!n.trim())return;tmp.push({tag:n.trim(),amt:0,note:''});draw();};
+      if(n==null||!n.trim())return;const t=n.trim();
+      if(!S.tags.includes(t)){S.tags.push(t);save();render();}   /* 新名目自动进标签库并落盘，固定/浮动/生活费三处通用 */
+      tmp.push({tag:t,amt:0,note:''});draw();};
     $('#okFx').onclick=()=>{
       if(isFix)mo.items=tmp.filter(i=>i.amt>0||i.tag);
       else mo.flex=tmp.filter(i=>i.amt>0||i.tag);
@@ -1898,9 +1959,13 @@ function bindCalc(){
     const mk=calcKey();
     sheet(`${sheetHead('生活费分几周')}
       <div class="chips">${WEEK_OPTS.map(n=>
-        `<span class="chip" data-setwk="${n}">${n} 周</span>`).join('')}</div>`,()=>{
+        `<span class="chip" data-setwk="${n}">${n} 周</span>`).join('')}</div>
+      <div class="tiny dim" style="margin-top:10px">想让哪周多花点？可以不平均分。</div>
+      <button class="btn" id="goWkCustom" style="margin-top:8px;width:100%">自定义每周预算</button>`,()=>{
       document.querySelectorAll('[data-setwk]').forEach(c=>c.onclick=()=>{
         getMonth(mk).weeks=+c.dataset.setwk;save();closeSheet();render();});
+      const gc=$('#goWkCustom');
+      if(gc)gc.onclick=()=>weekSheet(mk);
     });});
 }
 function calcLive(mk){
