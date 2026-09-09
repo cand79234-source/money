@@ -1468,20 +1468,27 @@ function weekSheet(k){
     const box=$('#wkRows');if(!box)return;
     const used=arr.reduce((s,x)=>s+x,0);
     box.innerHTML=arr.map((v,i)=>`
-      <div class="arow">
-        <div class="between" style="margin-bottom:6px">
-          <span class="tiny">第 ${i+1} 周</span>
-          <span class="tiny"><b class="money" style="font-size:14.5px">${money(v)}</b></span>
-        </div>
-        <input type="range" class="wrl" data-i="${i}" min="0" max="${Math.max(200,pool)}" step="10" value="${v}">
+      <div class="arow" style="display:flex;align-items:center;gap:9px;padding:8px 0;${i?'border-top:1px dashed var(--line)':''}">
+        <span class="tiny" style="width:50px;flex:0 0 auto">第 ${i+1} 周</span>
+        <input type="text" inputmode="decimal" class="wri" data-i="${i}" value="${v}" placeholder="0"
+          style="flex:1;min-width:0;text-align:right;font-weight:600">
       </div>`).join('')+
-      `<div class="between tiny" style="margin-top:6px;padding-top:9px;border-top:1px dashed var(--line)">
+      `<div class="between tiny" id="wkSum" style="margin-top:6px;padding-top:9px;border-top:1px dashed var(--line)">
         <span class="dim">合计 / 可分配</span>
         <span style="color:${used>pool?'var(--red)':'var(--muted)'}">${money(used)} / ${money(pool)}</span></div>`;
-    box.querySelectorAll('.wrl').forEach(r=>r.oninput=()=>{arr[+r.dataset.i]=+r.value;draw();});
+    box.querySelectorAll('.wri').forEach(r=>{
+      r.onfocus=()=>r.select();
+      r.oninput=()=>{
+        const i=+r.dataset.i;arr[i]=num(r.value);
+        const u=arr.reduce((s,x)=>s+x,0);
+        const sm=$('#wkSum');
+        if(sm)sm.innerHTML=`<span class="dim">合计 / 可分配</span>
+          <span style="color:${u>pool?'var(--red)':'var(--muted)'}">${money(u)} / ${money(pool)}</span>`;
+      };
+    });
   };
   sheet(`${sheetHead('调整每周预算')}
-    <div class="tiny dim" style="margin-bottom:12px">可分配 ${money(pool)} · 想让哪周多花就拖哪周</div>
+    <div class="tiny dim" style="margin-bottom:12px">可分配 ${money(pool)} · 直接填数字，想让哪周多花就填哪周</div>
     <div id="wkRows"></div>
     <div class="btns"><button class="btn" id="evenWk">平分</button>
       <button class="btn" onclick="closeSheet()">取消</button>
