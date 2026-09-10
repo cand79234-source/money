@@ -211,6 +211,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
 .flow.total .fn{font-weight:700}
 .flow.total .fv{font-weight:700;font-size:17px}
 .sub{background:#F8FAFC;border-radius:10px;padding:2px 10px;margin:6px 0}
+/* 生活费页「储蓄」栏：可点开/收起的 123长期 与 梦想项目 */
+.flow.save{cursor:pointer}
+.flow.save .fp{color:var(--blue)}
+.flow.save .caret{transition:transform .22s}
+.flow.save.collapsed .caret{transform:rotate(-90deg);color:var(--dim)}
+.saveSub.collapsed{display:none}
 .sub .si{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:5px 0}
 .sub .si b{color:var(--text);font-weight:600}
 .flow.hl{background:#F1F5FB;border-radius:10px;padding:9px 10px;border-bottom:none;margin-top:9px}
@@ -1290,6 +1296,30 @@ function monthBody(k,m,mo,C){
   if(C.carryIn)h+=`<div class="between tiny" style="padding-bottom:2px">
     <span class="dim">上月结转</span>
     <span style="color:${C.carryIn<0?'var(--red)':'var(--green)'}">${C.carryIn<0?'− 欠':'＋ 余'} ${money(Math.abs(C.carryIn))}</span></div>`;
+  const A=monthAlloc(k);
+  const lvSum=LEVELS.reduce((s,l)=>s+(A[l.k]||0),0);
+  const lvRows=LEVELS.map((l,n)=>`<div class="fixli"><i style="background:${l.c}"></i>
+      <span>${esc(l.n)}</span><b>${money(A[l.k]||0)}</b></div>`).join('');
+  const dmSum=(S.dreams||[]).reduce((s,d)=>s+(+d.monthly||0),0);
+  const dmRows=(S.dreams||[]).map((d,n)=>`<div class="fixli"><i style="background:#DB2777"></i>
+      <span>${esc(d.name)}</span><b>${money(+d.monthly||0)}</b></div>`).join('');
+  const svPct=x=>C.available>0?Math.round(x/C.available*100):0;
+  h+=`<div class="flow save" data-sv="lv" data-m="${m}" style="margin-top:8px">
+      <span class="fn">储蓄</span>
+      <span class="fv">−${money(lvSum)}</span><span class="fp">${svPct(lvSum)}%</span>
+      <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
+    </div>
+    <div class="sub saveSub" data-svsub="lv" data-m="${m}">
+      ${lvRows||`<div class="fixli"><i style="background:var(--dim)"></i><span>去计算页设各档月投</span></div>`}
+    </div>`;
+  h+=`<div class="flow save" data-sv="dm" data-m="${m}" style="margin-top:8px">
+      <span class="fn">梦想</span>
+      <span class="fv">−${money(dmSum)}</span><span class="fp">${svPct(dmSum)}%</span>
+      <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
+    </div>
+    <div class="sub saveSub" data-svsub="dm" data-m="${m}">
+      ${dmRows||`<div class="fixli"><i style="background:var(--dim)"></i><span>去总览添加梦想项目</span></div>`}
+    </div>`;
   h+=`<div class="flow minus" data-fx="fix">
       <span class="fn">固定开销</span>
       <span class="fv">−${money(fixSum)}</span><span class="fp">${pctOf}%</span>
@@ -1424,6 +1454,15 @@ function bindLiving(){
   });
   document.querySelectorAll('[data-cpy]').forEach(el=>el.onclick=e=>{
     e.stopPropagation();reportSheet(y+'-'+pad(el.dataset.cpy));});
+  /* 生活费页「储蓄」栏：点开/收起 123长期 与 梦想项目 */
+  document.querySelectorAll('[data-sv]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    const m=el.dataset.m, which=el.dataset.sv;
+    const sub=document.querySelector('.saveSub[data-svsub="'+which+'"][data-m="'+m+'"]');
+    if(!sub)return;
+    const collapsed=el.classList.toggle('collapsed');
+    sub.classList.toggle('collapsed',collapsed);
+  });
   document.querySelectorAll('[data-cw]').forEach(el=>el.onclick=()=>toast(
     el.dataset.cw+'：'+money(+el.dataset.amt)+' · '+el.dataset.n+' 次'));
   const ad=$('#addDebt');
