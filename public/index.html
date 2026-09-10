@@ -459,6 +459,25 @@ function monthBase(k){return (S.monthlyM&&S.monthlyM[k]!=null)?S.monthlyM[k]:S.m
 /* 计算页每行「已给出」状态：存在 S.paid[月份][key] */
 function isPaid(mk,key){return !!(S.paid&&S.paid[mk]&&S.paid[mk][key]);}
 function setPaid(mk,key,v){S.paid=S.paid||{};S.paid[mk]=S.paid[mk]||{};if(v)S.paid[mk][key]=1;else delete S.paid[mk][key];}
+/* 存款类行（L1/L2/L3/长期、梦想）的「已给出」= 已存入 → 进总览；消费类（固定/浮动/负债）= 已花出 → 只进生活费页 */
+function isDepositKey(key){return key.indexOf('lv:')===0||key.indexOf('dm:')===0;}
+function depositLvKey(k){return 'lv:'+k;}
+function depositDmKey(id){return 'dm:'+id;}
+/* 某月某档「已存入」的目标金额：勾了「已给出」才算（存入九月会先把所有存款类行标绿，所以同样生效） */
+function depositWantLevel(mk,k){
+  return isPaid(mk,depositLvKey(k))?(effAlloc(monthAlloc(mk))[k]||0):0;}
+function depositWantDream(mk,dm){
+  return isPaid(mk,depositDmKey(dm.id))?(+dm.monthly||0):0;}
+/* 幂等结算：把本月「已给出」的存款类行金额落到总览，与逐行勾选/整月入账保持一致，绝不重复记。
+   用 mo.bookL / mo.bookD 记本月已应用金额，每次只补差额(delta)。 */
+function reconcileDeposit(mk){
+  const mo=getMonth(mk);mo.bookL=mo.bookL||{};
+  LEVEL_KEYS.forEach(k=>{const w=depositWantLevel(mk,k),p=mo.bookL[k]||0,d=w-p;
+    if(d!==0){S.saved[k]=(S.saved[k]||0)+d;mo.bookL[k]=w;}});
+  mo.bookD=mo.bookD||{};
+  (S.dreams||[]).forEach(dm=>{const w=depositWantDream(mk,dm),p=mo.bookD[dm.id]||0,dd=w-p;
+    if(dd!==0){dm.saved=(dm.saved||0)+dd;mo.bookD[dm.id]=w;}});
+}
 function monthCalc(k){const mo=getMonth(k);
   const carryIn=+mo.carryIn||0,available=(+mo.total||0)+carryIn,spent=monthSpentReal(k);
   return{carryIn,available,spent,balance:available-spent};}
@@ -581,6 +600,7 @@ function dreamEta(d){
 const REMOTE_OK=()=>location.protocol.startsWith('http')&&!/github\.io$|^file:/.test(location.protocol+location.hostname);
 let bootDone=false, pendingSync=false;
 let S=load();
+migrateBooked();
 bootRemote();
 function normalize(s){
   if(!s.curMonth)s.curMonth=curKey();
@@ -624,6 +644,19 @@ function load(){
   let s;
   try{const r=JSON.parse(localStorage.getItem(KEY));s=r?Object.assign(defState(),r):defState();}catch(e){s=defState();}
   return normalize(s);
+}
+/* 老数据迁移：已在 S 初始化后跑。把「存入X月」过的月份，存款类行标绿并记下已应用金额
+   （不重复加 S.saved，旧版 bookSave 已经把金额加进去了，这里只补 bookL/bookD 跟踪，避免日后重复记账） */
+function migrateBooked(){
+  Object.keys(S.booked||{}).forEach(mk=>{
+    const mo=S.months[mk]; if(!mo)return;
+    if(mo.bookL&&mo.bookD)return;
+    const EF=effAlloc(monthAlloc(mk));
+    mo.bookL=mo.bookL||{};
+    LEVEL_KEYS.forEach(k=>{mo.bookL[k]=EF[k]||0;setPaid(mk,depositLvKey(k),true);});
+    mo.bookD=mo.bookD||{};
+    (S.dreams||[]).forEach(dm=>{mo.bookD[dm.id]=(+dm.monthly||0);setPaid(mk,depositDmKey(dm.id),true);});
+  });
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} syncRemote();}
 
@@ -1671,7 +1704,7 @@ function vCalc(){
   }else{
     h+=`<div class="sec"><h2>一层一层扣</h2><span class="hint">✏ 改明细</span></div>
     <div class="card" style="padding:4px 14px 12px">
-      <div class="tiny dim" style="margin-bottom:9px">每行右侧圆圈点一下 = 这笔钱「已给出」（变绿，并同步到生活费页）；没点 = 还在计划里、生活费页不显示。</div>
+      <div class="tiny dim" style="margin-bottom:9px">存款类行（L1/L2/L3/长期、梦想）右侧圆圈点一下 = 这笔「已存入」<b style="color:var(--green)">变绿并进总览</b>；消费类行（固定/浮动/负债）点一下 = 「已花出」只进生活费页。没点的都在计划里、生活费页不显示。点底部「存入 X 月」可一键把本月存款类全部标绿入账。</div>
       <div class="flow minus">
         <span class="fn">固定存储（L1+L2+L3+长期）</span>
         <span class="fv">−${money(saveSum)}</span><span class="fp">${P(saveSum)}%</span>
@@ -1824,6 +1857,7 @@ function saveSheet(){
       apply(Math.max(0,parseFloat($('#svTot').value)||0));
       S.allocM=S.allocM||{};S.allocM[mk]={};LEVEL_KEYS.forEach(k=>S.allocM[mk][k]=tmp[k]||0);
       S.monthlyM=S.monthlyM||{};S.monthlyM[mk]=total;
+      if(S.booked&&S.booked[mk])reconcileDeposit(mk);  /* 已入账月份：配比变了，总览差额跟着补 */
       save();closeSheet();render();
       toast(mk+' 月存 '+money(LEVEL_KEYS.reduce((s,k)=>s+(S.allocM[mk][k]||0),0))+'（仅本月，不影响其他月）');};
   });
@@ -1863,6 +1897,7 @@ function dreamEditSheet(){
     draw();
     $('#okDm').onclick=()=>{
       tmp.forEach(t=>{const d=S.dreams.find(x=>x.id===t.id);if(d)d.monthly=t.v;});
+      const dk=calcKey();if(S.booked&&S.booked[dk])reconcileDeposit(dk);  /* 已入账月份：梦想月投变了，总览跟着补 */
       save();closeSheet();render();toast('梦想基金月投已更新');};
   });
 }
@@ -2005,20 +2040,18 @@ function bindCalc(){
   const bs=$('#bookSave');
   if(bs)bs.onclick=()=>{
     const ck=calcKey();
-    S.booked=S.booked||{};
-    if(S.booked[ck]){
-      if(!confirm(`${parseInt(ck.split('-')[1],10)} 月已经入过账了。再点一次会重复累加，确定要继续吗？`))return;
-    }
-    const EF=effAlloc(monthAlloc(ck));
-    LEVEL_KEYS.forEach(k=>S.saved[k]=(S.saved[k]||0)+(EF[k]||0));
-    S.dreams.forEach(d=>{if(+d.monthly>0)d.saved=(d.saved||0)+(+d.monthly||0);});
-    S.booked[ck]=true;
-    save();render();toast('本月实投已入账');};
+    /* 一键把本月所有存款类行标绿（已给出）并结算进总览；幂等，重复点不重复记 */
+    LEVEL_KEYS.forEach(k=>setPaid(ck,depositLvKey(k),true));
+    (S.dreams||[]).forEach(dm=>setPaid(ck,depositDmKey(dm.id),true));
+    reconcileDeposit(ck);
+    S.booked=S.booked||{};S.booked[ck]=true;
+    save();render();toast('本月存款已入账，总览已更新');};
   const am=$('#adjMonth');if(am)am.onclick=()=>adjustSheet();
   document.querySelectorAll('[data-paid]').forEach(b=>b.onclick=()=>{
     const key=b.dataset.paid, mk=calcKey();
     const now=!isPaid(mk,key);
     setPaid(mk,key,now);
+    if(isDepositKey(key))reconcileDeposit(mk);   /* 存款类行：勾掉即入账 / 取消即冲回，总览随之更新 */
     save();render();
     toast(now?'这笔已给出 ✓':'已取消「已给出」');
   });
