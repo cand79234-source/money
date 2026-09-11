@@ -533,8 +533,23 @@ function depositDmKey(id){return 'dm:'+id;}
 /* 某月某档「已存入」的目标金额：勾了「已给出」才算（存入九月会先把所有存款类行标绿，所以同样生效） */
 function depositWantLevel(mk,k){
   return isPaid(mk,depositLvKey(k))?(effAlloc(monthAlloc(mk))[k]||0):0;}
+/* 梦想基金「本月投入额」：默认 = 计划值 dm.monthly（计划是定死的基准，只能在总览改）。
+   计算页可以单独改某一个月的投入额，存在 S.dreamM[mk][id]，只影响那个月，不动计划。 */
+function dreamMonthly(mk,dm){
+  const t=(S.dreamM||{})[mk]||{};
+  const v=t[dm.id];
+  return (v===undefined||v===null)?(+dm.monthly||0):(+v||0);
+}
+function setDreamMonthly(mk,id,val){
+  S.dreamM=S.dreamM||{};S.dreamM[mk]=S.dreamM[mk]||{};
+  const plan=(+((S.dreams.find(d=>d.id===id)||{}).monthly)||0);
+  /* 填了计划值就删掉覆盖，回到「默认按计划」的干净状态 */
+  if(val===null||val===undefined||+val===plan)delete S.dreamM[mk][id];
+  else S.dreamM[mk][id]=Math.max(0,+val||0);
+  reconcileDeposit(mk);
+}
 function depositWantDream(mk,dm){
-  return isPaid(mk,depositDmKey(dm.id))?(+dm.monthly||0):0;}
+  return isPaid(mk,depositDmKey(dm.id))?dreamMonthly(mk,dm):0;}
 /* 幂等结算：把本月「已给出」的存款类行金额落到总览，与逐行勾选/整月入账保持一致，绝不重复记。
    用 mo.bookL / mo.bookD 记本月已应用金额，每次只补差额(delta)。 */
 function reconcileDeposit(mk){
@@ -707,6 +722,7 @@ function normalize(s){
   if(!s.withdraws)s.withdraws=[];      // 取出流水：{id, src:'L1'|'L2'|'L3'|'LG'|'dm:<id>', amt, mk, ts}
   if(!s.dreamsDone)s.dreamsDone=[];    // 已完成的梦想基金（留档，进整年统计）
   if(!s.extraIn)s.extraIn={};          // 每月额外收入：{ '2026-09':[{id,src,amt}] }
+  if(!s.dreamM)s.dreamM={};            // 梦想本月投入覆盖：{ '2026-09':{ <dreamId>: 800 } }，缺省=计划值
   if(!s.subCol)s.subCol={};            // 生活费各栏折叠状态：键 '月份:栏位'，值为 true=收起
   if(!s.calcM)s.calcM=parseInt(curKey().split('-')[1],10);
   if(!Object.keys(s.open).length){s.open[s.curMonth]=true;s.fixOpen[s.curMonth]=true;}
@@ -735,7 +751,7 @@ function migrateBooked(){
     mo.bookL=mo.bookL||{};
     LEVEL_KEYS.forEach(k=>{mo.bookL[k]=EF[k]||0;setPaid(mk,depositLvKey(k),true);});
     mo.bookD=mo.bookD||{};
-    (S.dreams||[]).forEach(dm=>{mo.bookD[dm.id]=(+dm.monthly||0);setPaid(mk,depositDmKey(dm.id),true);});
+    (S.dreams||[]).forEach(dm=>{mo.bookD[dm.id]=dreamMonthly(mk,dm);setPaid(mk,depositDmKey(dm.id),true);});
   });
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} syncRemote();}
@@ -1020,7 +1036,7 @@ function vOverview(){
     const wdThis=withdrawnOf('dm:'+d.id,S.curMonth||curKey()); /* 本月取出：只用于标签展示 */
     const net=Math.max(0,(+d.saved||0)-wdAll);
     /* 当月实际投入：勾了才有 */
-    const paidNow=isPaid(S.curMonth||curKey(),'dm:'+d.id)?(+d.monthly||0):0;
+    const paidNow=isPaid(S.curMonth||curKey(),'dm:'+d.id)?dreamMonthly(S.curMonth||curKey(),d):0;
     const tag=!isFinite(e.delta)?`<span class="pill r">未设月投</span>`
       :e.delta<0?`<span class="pill g">提前 ${humanDays(-e.delta)}</span>`
       :e.delta>0?`<span class="pill r">延后 ${humanDays(e.delta)}</span>`:`<span class="pill">刚好</span>`;
@@ -1906,7 +1922,8 @@ function vCalc(){
   const sal=+S.salary||0;
   const dreamList=S.dreams.filter(d=>(d.monthly||0)>0);
   /* 本月实际投入：勾了 ✓ 的梦想项目才算真花钱 */
-  const dreamSum=dreamList.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+(+d.monthly||0),0);
+  /* 本月实际投入：勾了 ✓ 的按「本月投入额」算（默认=计划值，可单独改） */
+  const dreamSum=dreamList.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+dreamMonthly(mk,d),0);
   const wk=mo.weeks||4;
   /* 口径：工资 − 固定存储 − 固定开销 − 已勾选的梦想基金 − 负债 = 剩余①；
      再加「存储取出 + 额外收入」，减「浮动开销 + 当月周预算总和」= 剩余②
@@ -1971,9 +1988,9 @@ function vCalc(){
       ${S.dreams.length?`<div class="flow minus">
         <span class="fn">梦想基金</span>
         <span class="fv">−${money(dreamSum)}</span><span class="fp">${P(dreamSum)}%</span>
-        <span class="fg"><button class="adj" id="calcDream" title="改各项目月投">${PEN}</button></span>
+        <span class="fg"><button class="adj" id="calcDream" title="改本月投入">${PEN}</button></span>
       </div>
-      <div class="sub" style="display:block">${dreamList.length?dreamList.map((d,n)=>li(n,d.name,+d.monthly||0,'dm:'+d.id,isPaid(mk,'dm:'+d.id))).join('')
+      <div class="sub" style="display:block">${dreamList.length?dreamList.map((d,n)=>li(n,d.name,dreamMonthly(mk,d),'dm:'+d.id,isPaid(mk,'dm:'+d.id))).join('')
         :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}</div>`:''}
 
       <div class="flow minus">
@@ -2147,23 +2164,19 @@ function saveSheet(){
   });
 }
 
-/* ---- 梦想基金各项目月投 ---- */
+/* ---- 梦想基金「本月投入」：只改当月，计划值不动（改计划去总览） ---- */
 function dreamEditSheet(){
-  const tmp=S.dreams.map(d=>({id:d.id,name:d.name,v:+d.monthly||0}));
+  const mk=calcKey(), m=parseInt(mk.split('-')[1],10);
+  const tmp=S.dreams.map(d=>({id:d.id,name:d.name,plan:+d.monthly||0,v:dreamMonthly(mk,d)}));
   const sal=+S.salary||0;
   const draw=()=>{
     const box=$('#dmRows');if(!box)return;
-    const sum=tmp.reduce((s,x)=>s+x.v,0);
     box.innerHTML=tmp.length?tmp.map((d,n)=>`
       <div class="edli"><i style="background:${FIXC[n%FIXC.length]}"></i>
         <span class="nm">${esc(d.name)}</span>
-        <input type="text" inputmode="decimal" class="dmi" data-i="${n}" value="${d.v||''}" placeholder="0">
+        <input type="text" inputmode="decimal" class="dmi" data-i="${n}" value="${d.v||''}" placeholder="${d.plan}">
         <span class="pctv">${sal>0?'<b class="pct">'+Math.round(d.v/sal*100)+'%</b>':''}</span></div>`).join('')
       :`<div class="empty">总览里还没有梦想项目</div>`;
-    const hd=$('#dmHead');
-    if(hd)hd.innerHTML=`<div class="edHead"><div class="r1">
-        <span class="tiny muted">合计每月</span><b class="big">${money(sum)}</b></div>
-      <div class="tiny dim" style="margin-top:4px">${sal>0?`占薪资 <b class="pct">${Math.round(sum/sal*100)}%</b> · 这部分注定会花掉，不计入储蓄`:'填了薪资才看得到占比'}</div></div>`;
     box.querySelectorAll('.dmi').forEach(el=>{
       el.onfocus=()=>{if(!redrawing)el.select();};
       el.oninput=()=>{
@@ -2173,16 +2186,15 @@ function dreamEditSheet(){
         if(nx){redrawing=true;nx.focus();
           try{nx.setSelectionRange(end,end);}catch(e){}redrawing=false;}};});
   };
-  sheet(`${sheetHead('梦想基金 · 每月投入')}
-    <div id="dmHead"></div>
+  sheet(`${sheetHead('梦想基金 · 本月投入')}
     <div id="dmRows"></div>
     <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
       <button class="btn primary" id="okDm">确定</button></div>`,()=>{
     draw();
     $('#okDm').onclick=()=>{
-      tmp.forEach(t=>{const d=S.dreams.find(x=>x.id===t.id);if(d)d.monthly=t.v;});
-      const dk=calcKey();if(S.booked&&S.booked[dk])reconcileDeposit(dk);  /* 已入账月份：梦想月投变了，总览跟着补 */
-      save();closeSheet();render();toast('梦想基金月投已更新');};
+      tmp.forEach(t=>setDreamMonthly(mk,t.id,t.v));
+      save();closeSheet();render();
+      toast(m+' 月梦想投入已更新');};
   });
 }
 
@@ -2252,8 +2264,8 @@ function fixEditSheet(k,kind,fromCalc){
   const wk=mo.weeks||4;
   const calc=()=>{
     const EF=effAlloc(),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
-    /* 梦想基金：只算本月已勾选 ✓ 的（计划归计划，不一定照做） */
-    const dreamSum=S.dreams.filter(d=>isPaid(k,'dm:'+d.id)).reduce((s,d)=>s+(+d.monthly||0),0);
+    /* 梦想基金：只算本月已勾选 ✓ 的，金额按「本月投入额」（默认=计划，可在计算页单独改） */
+    const dreamSum=S.dreams.filter(d=>isPaid(k,'dm:'+d.id)).reduce((s,d)=>s+dreamMonthly(k,d),0);
     const debtSum=S.debts.reduce((s,d)=>{
       const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
       return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
@@ -2413,8 +2425,8 @@ function calcLive(mk){
   const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
   const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
   const EF=effAlloc(monthAlloc(mk)),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
-  /* 梦想基金：只算该月已勾选 ✓ 的（计划归计划，不一定照做） */
-  const dreamSum=S.dreams.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+(+d.monthly||0),0);
+  /* 梦想基金：只算该月已勾选 ✓ 的，金额按「本月投入额」（默认=计划，可在计算页单独改） */
+  const dreamSum=S.dreams.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+dreamMonthly(mk,d),0);
   const debtSum=S.debts.reduce((s,d)=>{
     const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
     return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
