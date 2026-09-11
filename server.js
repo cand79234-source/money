@@ -72,9 +72,18 @@ app.get('/sw.js', (_req, res) =>
     .sendFile(path.join(__dirname, 'public', 'sw.js'))
 );
 
+// 首页永远拿最新的，避免被浏览器/Service Worker 缓存住旧版本
+app.get(['/', '/index.html'], (_req, res) =>
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    .sendFile(path.join(__dirname, 'public', 'index.html'))
+);
+
 // 静态资源 + SPA 回退
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.use(express.static(path.join(__dirname, 'public'), { etag: false, lastModified: false }));
+app.get('*', (_req, res) =>
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    .sendFile(path.join(__dirname, 'public', 'index.html'))
+);
 
 const PORT = process.env.PORT || 3000;
 ensureTable()

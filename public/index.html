@@ -175,11 +175,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
   border-radius:10px;padding:7px 10px;margin:4px 0 2px}
 .wkHit .hit{cursor:pointer;font-weight:600;white-space:nowrap}
 .wkHit .dim{cursor:pointer;white-space:nowrap}
-.wk .wl{width:64px;flex:0 0 auto}
-.wk .wl b{display:block;font-size:12.5px;font-weight:600}
-.wk .wl em{display:block;font-style:normal;font-size:10px;color:var(--dim);margin-top:1px}
-.wk input.spent{width:80px;flex:0 0 auto;padding:7px 8px;font-size:13px;text-align:right}
-.wk input.desc{flex:1;min-width:0;padding:7px 9px;font-size:12.5px}
+/* 周行：第 1 行「第X周  预算 / 剩余」，第 2 行「实际框 + 备注框」 */
+.wk{display:block;padding:6px 0}
+.wk .wl{display:flex;align-items:center;gap:6px;
+  font-size:11.5px;color:var(--muted);white-space:nowrap;margin-bottom:5px}
+.wk .wl b{font-size:12.5px;font-weight:600;flex:0 0 auto;color:var(--text)}
+.wk .wl em{font-style:normal;white-space:nowrap}
+.wk .wkin{display:flex;align-items:center;gap:7px}
+/* 去掉 number 的原生微调箭头，否则框再宽也被它吃掉一半 */
+.wk input.spent::-webkit-outer-spin-button,
+.wk input.spent::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+.wk input.spent{-moz-appearance:textfield;appearance:textfield}
+.wk input.spent{width:40px;flex:0 0 auto;padding:6px 4px;font-size:12.5px;text-align:right;line-height:1.15}
+.wk input.desc{flex:1 1 auto;min-width:0;padding:6px 9px;font-size:12.5px;line-height:1.15}
 
 /* ---- 词云 ---- */
 .cloud{position:relative;overflow:hidden;padding:4px 2px 2px}
@@ -207,6 +215,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
   font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
 .flow .fg{min-width:40px;width:auto;flex:0 0 auto;text-align:right}
 .flow.minus .fv{color:var(--red)}
+.flow.plus .fv{color:var(--green)}
+.flow.plus .fn{color:var(--text)}
 .flow.total{border-bottom:none;border-top:2px solid var(--line);margin-top:4px;padding-top:12px;font-size:15px}
 .flow.total .fn{font-weight:700}
 .flow.total .fv{font-weight:700;font-size:17px}
@@ -403,7 +413,7 @@ const defState=()=>({
   paid:{},             // 计算页「已给出」标记：{ '2026-09':{ 'fx:<id>':1, 'lv:L2':1, ... } }
   open:{}, fixOpen:{},
   view:'overview', curMonth:null
-});
+});;
 
 /* ================= 工具（全部声明完再 load） ================= */
 const $=s=>document.querySelector(s);
@@ -433,8 +443,10 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1700);}
 function getMonth(k){if(!S.months[k])S.months[k]={total:0,items:[],flex:[],weeks:4};return S.months[k];}
 
-/* 这一档真正已攒的 = 之前累计攒的 + 开始前已有的（点总览右上角钱币填的初始金额） */
-function savedOf(k){return (+S.saved[k]||0)+(+((S.initial||{})[k])||0);}
+/* 这一档真正已攒的 = 之前累计攒的 + 开始前已有的 − 已取出的（取出会扣减储蓄进度，总览/计算页都跟着变） */
+function savedOf(k){return Math.max(0,(+S.saved[k]||0)+(+((S.initial||{})[k])||0)-(+withdrawnOf(k)||0));}
+/* 这一档「一共存进来过多少」（不扣取出）—— 整年统计的"存储"占比偶尔要看总量时用 */
+function savedInOf(k){return (+S.saved[k]||0)+(+((S.initial||{})[k])||0);}
 
 /* 满档溢出后的实际投入；alloc 可传「某个月自己的配比」，不传就用全局（长期基准） */
 function effAlloc(alloc){
@@ -454,7 +466,7 @@ function monthSpent(k){const mo=getMonth(k);
   return (mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0)
     +(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0)
     +(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);}
-/* 只算「已给出」的：勾过的固定 / 浮动 + 每周实花。生活费页、结转、结余都用它 */
+/* 只算「已给出」的：勾过的固定 / 浮动 + 每周实花。生活费页、结余都用它 */
 function monthSpentReal(k){const mo=getMonth(k);
   return (mo.items||[]).filter(i=>isPaid(k,'fx:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0)
     +(mo.flex||[]).filter(i=>isPaid(k,'fl:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0)
@@ -462,6 +474,55 @@ function monthSpentReal(k){const mo=getMonth(k);
 /* 每月各自的配比 / 基准：没单独设过就用全局长期基准 */
 function monthAlloc(k){return (S.allocM&&S.allocM[k])?S.allocM[k]:S.alloc;}
 function monthBase(k){return (S.monthlyM&&S.monthlyM[k]!=null)?S.monthlyM[k]:S.monthly;}
+
+/* ================= 取出 / 额外收入 / 整年统计 ================= */
+/* 取出流水：可全部取，也可只取某个月。mk 为空 = 累计取出（老数据/整年都算） */
+function withdrawsOf(src,mk){
+  return (S.withdraws||[]).filter(w=>w.src===src&&(!mk||w.mk===mk));
+}
+function withdrawnOf(src,mk){
+  return withdrawsOf(src,mk).reduce((s,w)=>s+(+w.amt||0),0);
+}
+/* 真正可用余额 = 已攒（含初始） − 累计取出 */
+function balanceOf(k){return Math.max(0,savedOf(k)-withdrawnOf(k));}
+/* 加一笔取出：从该账户余额里扣，并落一条流水 */
+function addWithdraw(src,amt,mk){
+  amt=Math.max(0,+amt||0); if(!amt)return 0;
+  const avail=balanceOf(src);
+  const real=Math.min(amt,avail);
+  if(real<=0)return 0;
+  S.withdraws=S.withdraws||[];
+  S.withdraws.push({id:'w'+Math.random().toString(36).slice(2,9),src:src,amt:real,mk:mk||'',ts:Date.now()});
+  return real;
+}
+/* 某月额外收入 */
+function extraList(k){return (S.extraIn&&S.extraIn[k])||[];}
+function extraSum(k){return extraList(k).reduce((s,x)=>s+(+x.amt||0),0);}
+/* 某月存储取出明细（按档位/梦想分组，只返回有金额的） */
+function withdrawRowsOf(mk){
+  const rows=[];
+  LEVELS.forEach(lv=>{const a=withdrawnOf(lv.k,mk);if(a>0)rows.push({name:lv.n,amt:a,c:lv.c});});
+  (S.dreams||[]).forEach(d=>{const a=withdrawnOf('dm:'+d.id,mk);if(a>0)rows.push({name:d.name+'（基金）',amt:a,c:'#DB2777'});});
+  return rows;
+}
+/* 某月取出总额（计算页「存储取出」那行的合计） */
+function withdrawSum(mk){return withdrawRowsOf(mk).reduce((s,r)=>s+r.amt,0);}
+/* 当月所有周的预算总和（周预算，计算页横线②要减的就是它） */
+function monthWeekBudgetTotal(k){
+  const mo=getMonth(k),wk=mo.weeks||4;
+  const items=mo.items||[];
+  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
+  const total=(+mo.total||0);
+  const pool=total-fixSum-flexSum;
+  let sum=0;for(let w=0;w<wk;w++)sum+=budgetOf(k,pool,w,wk);
+  return sum;
+}
+/* 某月「存储取出 + 额外收入」都归入可用钱的增项 */
+function monthExtraIn(k){return extraSum(k);}
+/* 取出的合计（全时段，用于整年统计的净存） */
+function totalWithdrawn(){return (S.withdraws||[]).reduce((s,w)=>s+(+w.amt||0),0);}
+
 /* 计算页每行「已给出」状态：存在 S.paid[月份][key] */
 function isPaid(mk,key){return !!(S.paid&&S.paid[mk]&&S.paid[mk][key]);}
 function setPaid(mk,key,v){S.paid=S.paid||{};S.paid[mk]=S.paid[mk]||{};if(v)S.paid[mk][key]=1;else delete S.paid[mk][key];}
@@ -485,15 +546,19 @@ function reconcileDeposit(mk){
     if(dd!==0){dm.saved=(dm.saved||0)+dd;mo.bookD[dm.id]=w;}});
 }
 function monthCalc(k){const mo=getMonth(k);
-  const carryIn=+mo.carryIn||0,available=(+mo.total||0)+carryIn,spent=monthSpentReal(k);
-  return{carryIn,available,spent,balance:available-spent};}
+  /* 每月独立结算：本月可花 + 额外收入 − 本月实花 = 结余（负数即超支）。不跨月结转。
+     budget：只用于分周预算的基数（本月可花，不含额外收入）——预算是事先算好的，不被突发收入改写。
+     available：月底结算的实际可用（含额外收入），额外收入能抵超支。 */
+  const exIn=extraSum(k);
+  const budget=(+mo.total||0);
+  const available=budget+exIn,spent=monthSpentReal(k);
+  return{carryIn:0,extraIn:exIn,budget,available,spent,balance:available-spent};}
+/* 已废弃跨月结转，保留空函数兼容旧调用点 */
 function rebuildCarry(){
-  const y=yearKey();let prev=0;
+  const y=yearKey();
   for(let m=1;m<=12;m++){
     const k=y+'-'+pad(m),mo=S.months[k];
-    const blank=!mo||(!mo.total&&!(mo.items||[]).length&&!(mo.wdata||[]).length&&!(mo.flex||[]).length);
-    if(blank){if(mo)mo.carryIn=prev;continue;}
-    mo.carryIn=prev;prev=monthCalc(k).balance;
+    if(mo&&mo.carryIn)mo.carryIn=0;
   }
 }
 /* 周预算：默认平分；有自定义就用自定义 */
@@ -502,10 +567,15 @@ function budgetOf(k,pool,wIdx,wk){
   if(c&&c.length===wk)return Math.max(0,+c[wIdx]||0);
   return wk>0?pool/wk:0;
 }
-/* 周预算文案：自定义了就优先显示「预算 X」；只有既没自定义、当月「可花」又为 0 时才「未设预算」。
-   （老逻辑 pool<=0 就一律「未设预算」，会把已设的自定义周预算也吞掉，已修） */
-function wkBudgetTxt(pool,bud){
-  if(bud>0)return '预算 '+money(bud);
+/* 周预算文案：前面是预算，后面是「预算 − 实际」（这周还能花多少）。超了就红字 -XXX */
+function wkBudgetTxt(pool,bud,spent){
+  spent=+spent||0;
+  if(bud>0){
+    const left=bud-spent;
+    return `预算 ${money(bud)} <span class="dim">/</span> ${left<0
+      ? `<b style="color:var(--red)">-${money(-left)}</b>`
+      : `<b style="color:var(--green)">${money(left)}</b>`}`;
+  }
   if(pool<=0)return '<i class="dim">未设预算</i>';
   return '<i style="color:var(--red)">已超支</i>';
 }
@@ -536,15 +606,15 @@ function monthReport(k){
   const flexList=mo.flex||[];
   const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
   const wk=mo.weeks||4;
-  const pool=C.available-fixSum-flexSum;
+  const pool=C.budget-fixSum-flexSum;
   const sal=+S.salary||0;
-  const pc=n=>C.available>0?(n/C.available*100).toFixed(1):'0';
+  const pc=n=>C.budget>0?(n/C.budget*100).toFixed(1):'0';
   const pcs=n=>sal>0?(n/sal*100).toFixed(1):'—';
   let t=`【${m} 月账目】
 `;
   t+=`月薪资 ${sal?money(sal):'未填'}
 `;
-  t+=`本月可用 ${money(C.available)}${C.carryIn?`（含上月结转 ${money(C.carryIn)}）`:''}
+  t+=`本月可用 ${money(C.available)}
 `;
   t+=`固定开销合计 ${money(fixSum)}（占可用 ${pc(fixSum)}%${sal?'，占薪资 '+pcs(fixSum)+'%':''}）
 `;
@@ -634,6 +704,10 @@ function normalize(s){
   if(!s.allocM)s.allocM={};
   if(!s.monthlyM)s.monthlyM={};
   if(!s.paid)s.paid={};
+  if(!s.withdraws)s.withdraws=[];      // 取出流水：{id, src:'L1'|'L2'|'L3'|'LG'|'dm:<id>', amt, mk, ts}
+  if(!s.dreamsDone)s.dreamsDone=[];    // 已完成的梦想基金（留档，进整年统计）
+  if(!s.extraIn)s.extraIn={};          // 每月额外收入：{ '2026-09':[{id,src,amt}] }
+  if(!s.subCol)s.subCol={};            // 生活费各栏折叠状态：键 '月份:栏位'，值为 true=收起
   if(!s.calcM)s.calcM=parseInt(curKey().split('-')[1],10);
   if(!Object.keys(s.open).length){s.open[s.curMonth]=true;s.fixOpen[s.curMonth]=true;}
   if(!s.fixOpen[s.curMonth])s.fixOpen[s.curMonth]=true;
@@ -744,11 +818,13 @@ function shareOf(EF,sum){
   return{sal,save:sum,live,free,ok:sal>0};
 }
 function salaryCard(EF,sum){
+  const sal=+S.salary||0;
   return `<div class="card" style="padding:13px 14px">
     <div class="between">
-      <span class="tiny muted">月薪资（填了才能看占比）</span>
-      <input id="salaryIn" class="money" type="number" value="${S.salary||''}" placeholder="0" step="100"
-        style="width:110px;text-align:right;padding:6px 9px;font-size:14px">
+      <span class="tiny muted">月薪资</span>
+      <span>${sal>0
+        ?`<b class="money" style="font-size:15px">${money(sal)}</b>`
+        :`<span class="tiny dim">去计算页填</span>`}</span>
     </div>
     <div id="salViz">${salViz(EF,sum)}</div>
   </div>`;
@@ -886,25 +962,17 @@ function vOverview(){
         <b class="money" style="font-size:14px">${money(S.monthly)}</b>
         <span class="dim" style="font-size:12px">/</span>
         <b class="money" style="font-size:14px;color:${sumAll<(+S.monthly||0)?'#D97706':sumAll>(+S.monthly||0)?'var(--red)':'var(--green)'}">${money(sumAll)}</b>
-        <button class="adj" id="editMonthly" title="改这个月投多少">改本月</button>
+        <button class="adj" id="editMonthly" title="改长期基准">改基数</button>
       </span>
     </div>
     <div class="tiny dim" style="margin-top:6px">前面是长期基准，后面是这个月实际投的。
       手头紧可以少投，宽裕了也能多投，基准不会跟着变。</div>
-    <div class="between" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
-      <div style="padding-right:8px">
-        <div class="tiny" style="color:var(--text)">满档自动溢出</div>
-        <div class="tiny dim">L1/L2/L3 攒满后，那份钱转投下一档，最终全给长期</div>
-      </div>
-      <button class="btn sm ${S.overflow?'primary':''}" id="ovfBtn">${S.overflow?'已开启':'已关闭'}</button>
-    </div>
-    ${S.overflow?`<div class="tiny" style="margin-top:8px;color:var(--green)">
-      本月实投：${LEVELS.map(l=>`${l.k} ${money(EF[l.k]||0)}`).join(' · ')}</div>`:''}
   </div>`;
 
   LEVELS.forEach(lv=>{
     const sv=savedOf(lv.k), al=S.alloc[lv.k]||0, ef=EF[lv.k]||0;
     const ini=+((S.initial||{})[lv.k])||0;
+    const wd=withdrawnOf(lv.k,S.curMonth||curKey());
     const full=sv>=lv.target;
     const p=Math.min(100,sv/lv.target*100);
     const moved=ef-al;
@@ -914,6 +982,7 @@ function vOverview(){
         <span class="dot" style="background:${lv.c}"></span>
         <span class="name">${lv.n}${lv.where?` <b style="color:${lv.c};font-size:11px;white-space:nowrap">存 ${lv.where}</b>`:''}</span>
         ${full?`<span class="pill g">已满</span>`:''}
+        ${wd>0?`<span class="pill r">已取出 ${money(wd)}</span>`:''}
         <span class="amt money">${money(sv)} / ${money(lv.target)}</span>
       </div>
       <div class="desc">${lv.d}</div>
@@ -929,7 +998,7 @@ function vOverview(){
             :moved>0?`<span class="pill g" style="margin-left:5px">实投 ${money(ef)}</span>`
             :moved<0?`<span class="pill r" style="margin-left:5px">让出 ${money(-moved)}</span>`:''}
         </span>
-        <button class="adj" data-alloc="${lv.k}">调整
+        <button class="adj" data-withdraw="${lv.k}">取出
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 6l6 6-6 6"/></svg></button>
       </div>
@@ -947,13 +1016,16 @@ function vOverview(){
   </div>`;
   S.dreams.forEach(d=>{
     const e=dreamEta(d);
+    const wdAll=withdrawnOf('dm:'+d.id);                       /* 累计取出：算真实余额 */
+    const wdThis=withdrawnOf('dm:'+d.id,S.curMonth||curKey()); /* 本月取出：只用于标签展示 */
+    const net=Math.max(0,(+d.saved||0)-wdAll);
     const tag=!isFinite(e.delta)?`<span class="pill r">未设月投</span>`
       :e.delta<0?`<span class="pill g">提前 ${humanDays(-e.delta)}</span>`
       :e.delta>0?`<span class="pill r">延后 ${humanDays(e.delta)}</span>`:`<span class="pill">刚好</span>`;
     h+=`
     <div class="dream">
       <div class="between">
-        <div class="nm">${esc(d.name)}</div>
+        <div class="nm">${esc(d.name)}${wdThis>0?` <span class="pill r">已取出 ${money(wdThis)}</span>`:''}</div>
         <span style="display:flex;align-items:center;gap:6px">
           <button class="adj" data-dreamedit="${d.id}" title="编辑项目">${PEN}</button>
           <button class="xbtn" data-dreamdel="${d.id}" style="width:26px;height:26px">
@@ -967,10 +1039,14 @@ function vOverview(){
         <i class="now" style="left:${e.pct}%"></i>
       </div>
       <div class="between tiny">
-        <span class="money muted">${money(d.saved||0)} / ${money(d.target)} · ${e.pct.toFixed(0)}%</span>
+        <span class="money muted">${money(net)} / ${money(d.target)} · ${e.pct.toFixed(0)}%</span>
         <span class="dim">${e.date?fmtDate(e.date):'—'} ${tag}</span>
       </div>
-      <div class="foot" style="margin-top:9px">
+      <div class="row" style="margin-top:9px;gap:6px">
+        <button class="btn sm" data-dreamwithdraw="${d.id}" style="flex:1">取出</button>
+        <button class="btn sm primary" data-dreamdone="${d.id}" style="flex:1">完成</button>
+      </div>
+      <div class="foot" style="margin-top:8px">
         <span class="setlbl">每月投入 <b class="money">${money(d.monthly)}</b>
           <span class="pill salpctd" data-dream="${d.id}" style="margin-left:5px;${(+S.salary||0)>0?'':'display:none'}">薪资 ${(+S.salary||0)>0?Math.round((+d.monthly||0)/(+S.salary)*100):0}%</span></span>
         <button class="adj" data-dreamalloc="${d.id}">调整
@@ -978,8 +1054,59 @@ function vOverview(){
       </div>
     </div>`;
   });
+  h+=yearStatsHTML();
   h+=`<div style="height:14px"></div>`;
   return h;
+}
+
+/* ================= 整年统计（总览最下方） ================= */
+function yearStatsHTML(){
+  const y=yearKey();
+  /* 生活费：全年实际花掉（固定已给 + 浮动已给 + 周实花） */
+  let lifeCost=0;
+  for(let m=1;m<=12;m++){const k=y+'-'+pad(m);if(S.months[k])lifeCost+=monthSpentReal(k);}
+  /* 存储：净存 = 一共存进来 − 一共取出 */
+  const savedIn=LEVEL_KEYS.reduce((s,k)=>s+savedInOf(k),0)
+    +(S.dreams||[]).reduce((s,d)=>s+(+d.saved||0),0)
+    + (S.dreamsDone||[]).reduce((s,d)=>s+(+d.saved||0),0);
+  const savedNet=Math.max(0,savedIn-totalWithdrawn());
+  /* 赚：12 个月工资 + 全年额外收入 */
+  const salaryY=(+S.salary||0)*12;
+  let extraY=0;
+  for(let m=1;m<=12;m++)extraY+=extraSum(y+'-'+pad(m));
+  const earnY=salaryY+extraY;
+  /* 梦想基金：在投 + 已完成留档 */
+  const dreamY=(S.dreams||[]).reduce((s,d)=>s+Math.max(0,(+d.saved||0)-withdrawnOf('dm:'+d.id)),0)
+    +(S.dreamsDone||[]).reduce((s,d)=>s+Math.max(0,(+d.saved||0)-(+d.wd||0)),0);
+  const pc=n=>earnY>0?Math.round(Math.max(0,n)/earnY*100):0;
+  /* 按占比从高到低排序，最高的排最上面 */
+  const rows=[
+    ['生活费','花掉',lifeCost,'#2F6BFF'],
+    ['存储','净存进',savedNet,'#0F9D58'],
+    ['额外收入','赚到的',extraY,'#7C4DEE'],
+    ['梦想基金','已投入',dreamY,'#DB2777']
+  ].sort((a,b)=>pc(b[2])-pc(a[2]));
+  return `<div class="sec" style="margin-top:22px"><h2>整年统计 · ${y} 年</h2><span class="hint">占整年收入比例</span></div>
+  <div class="card" style="padding:13px 14px">
+    <div class="between" style="padding-bottom:10px;border-bottom:1px dashed var(--line)">
+      <span class="tiny muted">整年赚（12 个月工资 + 额外收入）</span>
+      <b class="money" style="font-size:16px;color:#0F9D58">${money(earnY)}</b>
+    </div>
+    ${rows.map(([n,t,v,c])=>`
+      <div style="margin-top:11px">
+        <div class="between tiny" style="margin-bottom:5px">
+          <span><span class="dot" style="background:${c};display:inline-block;margin-right:6px"></span>${n}
+            <span class="dim">· ${t}</span></span>
+          <span><b class="money" style="font-size:13.5px">${money(v)}</b>
+            <span class="dim" style="margin-left:6px">${pc(v)}%</span></span>
+        </div>
+        <div class="bar sm"><i style="width:${Math.min(100,pc(v))}%;background:${c}"></i></div>
+      </div>`).join('')}
+    <div class="tiny dim" style="margin-top:12px;line-height:1.6">
+      存储为净存（共存进来 ${money(savedIn)} − 共取出 ${money(totalWithdrawn())}）；
+      生活费按已给出的固定/浮动开销 + 每周实花累计。
+    </div>
+  </div>`;
 }
 
 function distribute(o,k,val,total){
@@ -1056,14 +1183,13 @@ function dreamCardEdit(id){
 }
 function monthlySheet(){
   const sal=+S.salary||0;
-  /* 基准是长期标准；put 是这个月真正投进去的数，两者互不影响 */
+  /* 这里只改「长期基准」：未来薪资涨了，基准抬高，每月应分配也跟着高。
+     本月实际投多少，在计算页单独填。四档按当前比例分摊基准值。 */
   const ratio={};LEVEL_KEYS.forEach(x=>ratio[x]=S.alloc[x]||0);
   let base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0);
-  /* 四档全是 0（比如上月投了 0）时回落到默认配比，不然钱会全砸进 L1 */
   if(!base0){LEVEL_KEYS.forEach(x=>ratio[x]=BASE[x]||0);
     base0=LEVEL_KEYS.reduce((s,x)=>s+ratio[x],0)||1;}
-  let base=S.monthly||0, put=LEVEL_KEYS.reduce((s,x)=>s+(S.alloc[x]||0),0)||S.monthly||0;
-  /* 四舍五入会有 1~2 元误差，补到占比最大的那一档，保证四档合计 === 输入的数 */
+  let base=S.monthly||0;
   const spread=n=>{
     const o={};let s=0;
     LEVEL_KEYS.forEach(k=>{o[k]=Math.round(ratio[k]/base0*n);s+=o[k];});
@@ -1075,53 +1201,103 @@ function monthlySheet(){
   };
   const draw=()=>{
     const el=$('#mRows');if(!el)return;
-    const v=spread(put);
+    const v=spread(base);
     el.innerHTML=LEVELS.map(lv=>`
       <div class="arow" style="--accentC:${lv.c}">
         <div class="between" style="margin-bottom:0">
           <span class="tiny"><span class="dot" style="background:${lv.c};margin-right:5px"></span>${lv.n}</span>
           <span class="tiny"><b class="money" style="font-size:13.5px">${money(v[lv.k]||0)}</b>
-            <span class="dim" style="margin-left:5px">${put>0?Math.round((v[lv.k]||0)/put*100):0}%</span></span>
+            <span class="dim" style="margin-left:5px">${base>0?Math.round((v[lv.k]||0)/base*100):0}%</span></span>
         </div></div>`).join('')
       +`<div class="between tiny" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
         <span class="dim">四档合计</span>
-        <span><b class="money">${money(put)}</b>
-          <span class="dim" style="margin-left:5px">/ 基准 ${money(base)}</span></span></div>`;
+        <span><b class="money">${money(base)}</b></span></div>`;
     const pc=$('#mPct');
-    if(pc&&sal>0)pc.innerHTML=Math.round(put/sal*100)+'%';
+    if(pc&&sal>0)pc.innerHTML=Math.round(base/sal*100)+'%';
   };
-  sheet(`${sheetHead('每月存储')}
-    <div class="f2">
-      <div class="fld"><label>基准（长期，一般不动）</label>
-        <input id="mBase" type="text" inputmode="decimal" class="money" value="${base}" step="100"></div>
-      <div class="fld"><label>这个月投多少</label>
-        <input id="mPut" type="text" inputmode="decimal" class="money" value="${put}" step="100"></div>
-    </div>
-    <div class="tiny dim" style="margin:9px 0 7px">改「这个月投多少」，四档按现在的比例自动分摊。
-      ${sal>0?`占薪资 <b class="pct" id="mPct">${Math.round(put/sal*100)}%</b>`:''}</div>
+  sheet(`${sheetHead('每月存储 · 基数')}
+    <div class="fld"><label>基数（长期标准，一般不动）</label>
+      <input id="mBase" type="text" inputmode="decimal" class="money" value="${base}" step="100"></div>
+    <div class="tiny dim" style="margin:9px 0 7px">这是长期基准：以后薪资高了，把它抬上去，每月应分配金额也一起高。
+      ${sal>0?`当前占薪资 <b class="pct" id="mPct">${Math.round(base/sal*100)}%</b>`:''}</div>
+    <div class="tiny dim" style="margin-bottom:7px">本月实际投多少，去计算页单独填，不会改这里的基准。</div>
     <div id="mRows"></div>
     <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
       <button class="btn primary" id="okM">确定</button></div>`,()=>{
     draw();
-    $('#mPut').oninput=e=>{put=Math.max(0,parseFloat(e.target.value)||0);draw();};
     $('#mBase').oninput=e=>{base=Math.max(0,parseFloat(e.target.value)||0);draw();};
     $('#okM').onclick=()=>{
       base=Math.max(0,parseFloat($('#mBase').value)||0);
-      put=Math.max(0,parseFloat($('#mPut').value)||0);
-      const v=spread(put);
+      const v=spread(base);
       S.monthly=base;LEVEL_KEYS.forEach(k=>S.alloc[k]=v[k]||0);
-      save();closeSheet();render();toast('这个月投 '+money(put));};
+      save();closeSheet();render();toast('基准已改为 '+money(base));};
   });
+}
+
+/* ================= 取出弹窗（四档 / 梦想基金共用） ================= */
+function withdrawSheet(src){
+  let name,avail,color;
+  if(src.indexOf('dm:')===0){
+    const d=(S.dreams||[]).find(x=>'dm:'+x.id===src);
+    if(!d)return;
+    name=d.name+'（梦想基金）';avail=Math.max(0,(+d.saved||0)-withdrawnOf(src));color='#DB2777';
+  }else{
+    const lv=LEVELS.find(x=>x.k===src);if(!lv)return;
+    name=lv.n;avail=balanceOf(src);color=lv.c;
+  }
+  const mk=(S.curMonth||curKey());
+  const m=parseInt(mk.split('-')[1],10);
+  sheet(`${sheetHead(name+' · 取出')}
+    <div class="bignum" style="color:${color}"><small>¥</small><span id="wv">0</span></div>
+    <div class="tiny dim" style="text-align:center;margin:-6px 0 12px">
+      可用余额 <b class="money" style="color:var(--text)">${money(avail)}</b> · 取出会从存储里扣掉</div>
+    <div class="fld"><label>取出金额（可改）</label>
+      <input id="wAmt" type="text" inputmode="decimal" class="money" value="" placeholder="0"></div>
+    <div class="chips" style="padding:8px 0 4px">
+      ${[500,1000,2000,5000].map(a=>`<span class="chip" data-qw="${a}">${money(a)}</span>`).join('')}
+      ${avail>0?`<span class="chip" data-qw="${Math.round(avail)}">全部 ${money(avail)}</span>`:''}
+    </div>
+    <div class="fld" style="margin-top:8px"><label>记入哪个月（默认本月）</label>
+      <select id="wMon">${Array.from({length:12},(_,i)=>i+1).map(n=>
+        `<option value="${mk.split('-')[0]+'-'+pad(n)}" ${n===m?'selected':''}>${n} 月</option>`).join('')}</select></div>
+    <div class="fld" style="margin-top:8px"><label>取出原因（可留空）</label>
+      <input id="wNote" placeholder="比如：修车、看病…"></div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okW">确认取出</button></div>`,()=>{
+    const inp=$('#wAmt'),v=$('#wv');
+    const sync=()=>{v.textContent=(Math.round(Math.max(0,parseFloat(inp.value)||0))).toLocaleString('zh-CN');};
+    inp.oninput=sync;
+    document.querySelectorAll('[data-qw]').forEach(c=>c.onclick=()=>{inp.value=c.dataset.qw;sync();});
+    $('#okW').onclick=()=>{
+      const amt=Math.max(0,parseFloat(inp.value)||0);
+      if(!amt)return toast('填个金额');
+      const real=addWithdraw(src,amt,$('#wMon').value);
+      if(real<=0)return toast('可用余额不足');
+      S.withdraws[S.withdraws.length-1].note=$('#wNote').value.trim();
+      save();closeSheet();render();
+      toast(real<amt?('可用只有 '+money(real)+'，已按余额取出'):('已取出 '+money(real)));
+    };
+  });
+}
+/* 梦想基金「完成」：卡片移除，但数据留档进整年统计 */
+function dreamDone(id){
+  const d=(S.dreams||[]).find(x=>x.id==id);if(!d)return;
+  const wd=withdrawnOf('dm:'+d.id);
+  if(!confirm(`「${d.name}」标记为完成？卡片会从总览移除，数据留档进整年统计。`))return;
+  S.dreamsDone=S.dreamsDone||[];
+  S.dreamsDone.push({id:d.id,name:d.name,target:+d.target||0,saved:+d.saved||0,wd:wd,ts:Date.now()});
+  S.dreams=S.dreams.filter(x=>x.id!=id);
+  save();render();toast('「'+d.name+'」已完成，已存档');
 }
 
 function bindOverview(){
   const em=$('#editMonthly');if(em)em.onclick=monthlySheet;
-  const ov=$('#ovfBtn');
-  if(ov)ov.onclick=()=>{S.overflow=!S.overflow;save();render();
-    toast(S.overflow?'溢出已开启 · 满档转投长期':'已关闭 · 按设定比例投');};
   document.querySelectorAll('[data-alloc]').forEach(b=>b.onclick=()=>allocSheet());
-  const si=$('#salaryIn');
-  if(si)si.oninput=()=>{S.salary=num(si.value);save();refreshSalViz();};
+  /* 四档「取出」 */
+  document.querySelectorAll('[data-withdraw]').forEach(b=>b.onclick=()=>withdrawSheet(b.dataset.withdraw));
+  /* 梦想基金「取出」「完成」 */
+  document.querySelectorAll('[data-dreamwithdraw]').forEach(b=>b.onclick=()=>withdrawSheet('dm:'+b.dataset.dreamwithdraw));
+  document.querySelectorAll('[data-dreamdone]').forEach(b=>b.onclick=()=>dreamDone(b.dataset.dreamdone));
   const ad=$('#addDream');
   if(ad)ad.onclick=()=>sheet(`${sheetHead('添加梦想项目')}
     <div class="fld"><label>项目名称</label><input id="dn" placeholder="例如：俄罗斯旅行"></div>
@@ -1280,11 +1456,10 @@ function monthBody(k,m,mo,C){
   const fixSum=items.filter(i=>isPaid(k,'fx:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
   const flexList=mo.flex||[];
   const flexSum=flexList.filter(i=>isPaid(k,'fl:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
-  const pctOf=C.available>0?Math.round(fixSum/C.available*100):0;
+  const pctOf=C.budget>0?Math.round(fixSum/C.budget*100):0;
   const wk=mo.weeks||4;
-  const pool=C.available-fixSum-flexSum;
+  const pool=C.budget-fixSum-flexSum;
   const spent=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
-  const left=pool-spent;
   const li=(n,name,amt,extra)=>`<div class="fixli"><i style="background:${FIXC[n%FIXC.length]}"></i>
       <span>${esc(name)}</span><b>${money(amt)}${extra||''}</b></div>`;
   let h=`<div class="mbd">`;
@@ -1293,9 +1468,10 @@ function monthBody(k,m,mo,C){
     <span class="tiny dim">本月可花</span>
     <input class="money mTotal" data-m="${k}" type="number" value="${mo.total||''}" placeholder="0" step="100">
   </div>`;
-  if(C.carryIn)h+=`<div class="between tiny" style="padding-bottom:2px">
-    <span class="dim">上月结转</span>
-    <span style="color:${C.carryIn<0?'var(--red)':'var(--green)'}">${C.carryIn<0?'− 欠':'＋ 余'} ${money(Math.abs(C.carryIn))}</span></div>`;
+  /* 额外收入：不改周预算，只作为月底结算的可用增项 */
+  if(C.extraIn)h+=`<div class="between tiny" style="padding:1px 0 3px">
+    <span class="dim">额外收入（可抵超支，不占预算）</span>
+    <span style="color:var(--green)">＋ ${money(C.extraIn)}</span></div>`;
   const A=monthAlloc(k);
   const lvSum=LEVELS.reduce((s,l)=>s+(A[l.k]||0),0);
   const lvRows=LEVELS.map((l,n)=>`<div class="fixli"><i style="background:${l.c}"></i>
@@ -1303,7 +1479,7 @@ function monthBody(k,m,mo,C){
   const dmSum=(S.dreams||[]).reduce((s,d)=>s+(+d.monthly||0),0);
   const dmRows=(S.dreams||[]).map((d,n)=>`<div class="fixli"><i style="background:#DB2777"></i>
       <span>${esc(d.name)}</span><b>${money(+d.monthly||0)}</b></div>`).join('');
-  const svPct=x=>C.available>0?Math.round(x/C.available*100):0;
+  const svPct=x=>C.budget>0?Math.round(x/C.budget*100):0;
   h+=`<div class="flow save" data-sv="lv" data-m="${m}" style="margin-top:8px">
       <span class="fn">储蓄</span>
       <span class="fv">−${money(lvSum)}</span><span class="fp">${svPct(lvSum)}%</span>
@@ -1320,39 +1496,55 @@ function monthBody(k,m,mo,C){
     <div class="sub saveSub" data-svsub="dm" data-m="${m}">
       ${dmRows||`<div class="fixli"><i style="background:var(--dim)"></i><span>去总览添加梦想项目</span></div>`}
     </div>`;
-  h+=`<div class="flow minus" data-fx="fix">
+  h+=`<div class="flow save" data-sv="fix" data-m="${m}" style="margin-top:8px">
       <span class="fn">固定开销</span>
-      <span class="fv">−${money(fixSum)}</span><span class="fp">${pctOf}%</span>
-      <span class="fg"><button class="adj" onclick="fixEditSheet('${k}','fix')" title="编辑固定开销">${PEN}</button></span>
+      <span class="fv" style="color:var(--red)">−${money(fixSum)}</span><span class="fp">${pctOf}%</span>
+      <span class="fg"><button class="adj" onclick="event.stopPropagation();fixEditSheet('${k}','fix')" title="编辑固定开销">${PEN}</button></span>
+      <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
-    <div class="sub" style="display:block">${(items.filter(i=>isPaid(k,'fx:'+i.id)).length)?items.filter(i=>isPaid(k,'fx:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+    <div class="sub saveSub" data-svsub="fix" data-m="${m}">${(items.filter(i=>isPaid(k,'fx:'+i.id)).length)?items.filter(i=>isPaid(k,'fx:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
       .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
       :`<div class="fixli"><i style="background:var(--dim)"></i><span>去计算页勾选「已给出」才会出现在这里</span></div>`}</div>`;
-  h+=`<div class="flow minus" data-fx="flex" style="margin-top:8px">
+  h+=`<div class="flow save" data-sv="flex" data-m="${m}" style="margin-top:8px">
       <span class="fn">浮动开销</span>
-      <span class="fv">−${money(flexSum)}</span><span class="fp">${C.available>0?Math.round(flexSum/C.available*100):0}%</span>
-      <span class="fg"><button class="adj" onclick="fixEditSheet('${k}','flex')" title="编辑浮动开销">${PEN}</button></span>
+      <span class="fv" style="color:var(--red)">−${money(flexSum)}</span><span class="fp">${C.budget>0?Math.round(flexSum/C.budget*100):0}%</span>
+      <span class="fg"><button class="adj" onclick="event.stopPropagation();fixEditSheet('${k}','flex')" title="编辑浮动开销">${PEN}</button></span>
+      <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
-      <div class="sub" style="display:block">${(flexList.filter(i=>isPaid(k,'fl:'+i.id)).length)?flexList.filter(i=>isPaid(k,'fl:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
-        .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
-        :`<div class="fixli"><i style="background:var(--dim)"></i><span>人情、看病、修车…勾了「已给出」才计入</span></div>`}</div>`;
+    <div class="sub saveSub" data-svsub="flex" data-m="${m}">${(flexList.filter(i=>isPaid(k,'fl:'+i.id)).length)?flexList.filter(i=>isPaid(k,'fl:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0))
+      .map((i,n)=>li(n,i.tag,+i.amt||0)).join('')
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>人情、看病、修车…勾了「已给出」才计入</span></div>`}</div>`;
+  /* 额外收入：可填来源 + 金额，显示在浮动开销后面 */
+  const exList=extraList(k), exSum=extraList(k).reduce((s,x)=>s+(+x.amt||0),0);
+  h+=`<div class="flow save" data-sv="ex" data-m="${m}" style="margin-top:8px">
+      <span class="fn" style="color:var(--green)">额外收入</span>
+      <span class="fv" style="color:var(--green)">+${money(exSum)}</span><span class="fp"></span>
+      <span class="fg"><button class="adj" onclick="event.stopPropagation();extraInSheet('${k}')" title="编辑额外收入">${PEN}</button></span>
+      <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
+    </div>
+    <div class="sub saveSub" data-svsub="ex" data-m="${m}">${exList.length?exList.map((x,n)=>`<div class="fixli"><i style="background:#7C4DEE"></i>
+      <span>${esc(x.src||'其他')}</span><b style="color:var(--green)">+${money(x.amt)}</b></div>`).join('')
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>这个月有额外收入（奖金、副业…）点 ✏ 记一笔</span></div>`}</div>`;
   h+=`<div class="fline wkline" style="padding-top:11px;border-top:1px dashed var(--line);margin-top:8px">
-      <span class="fl">${left<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${left<0?'style="color:var(--red)"':''}>${left<0?money(-left):money(left)}</b></span>
-      <span class="tiny dim">/ 实际 <b class="money">${money(spent)}</b>
-        · ${pool>0?Math.round(spent/pool*100):0}%</span>
-      <select class="wkSel" data-wk="${k}" style="width:auto;padding:5px 7px;font-size:12px">
-        ${WEEK_OPTS.map(n=>`<option value="${n}" ${wk===n?'selected':''}>${n} 周</option>`).join('')}
-      </select>
-      <button class="adj" data-wadj="${k}">调整周
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+      <span class="fl">${C.balance<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${C.balance<0?'style="color:var(--red)"':''}>${C.balance<0?money(-C.balance):money(C.balance)}</b>
+        <span class="tiny dim" style="font-weight:400">· 实际 <b class="money">${money(spent)}</b></span></span>
+      <span style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+        <select class="wkSel" data-wk="${k}" style="width:auto;padding:5px 7px;font-size:12px">
+          ${WEEK_OPTS.map(n=>`<option value="${n}" ${wk===n?'selected':''}>${n} 周</option>`).join('')}
+        </select>
+        <button class="adj" data-wadj="${k}">调整周
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+      </span>
     </div>`;
   for(let w=1;w<=wk;w++){
     const d=(mo.wdata||[])[w-1]||{};
     const bud=budgetOf(k,pool,w-1,wk);
     h+=`<div class="wk">
-      <span class="wl"><b>第 ${w} 周</b><em>${wkBudgetTxt(pool,bud)}</em></span>
-      <input class="spent money" data-wd="${k}" data-w="${w-1}" type="number" value="${d.spent===undefined||d.spent===null?'':d.spent}" placeholder="实际">
-      <input class="desc" data-wdd="${k}" data-w="${w-1}" value="${esc(d.desc||'')}" placeholder="这周花哪了">
+      <span class="wl"><b>第 ${w} 周</b><em>${wkBudgetTxt(pool,bud,d.spent)}</em></span>
+      <span class="wkin">
+        <input class="spent money" data-wd="${k}" data-w="${w-1}" type="number" value="${d.spent===undefined||d.spent===null?'':d.spent}" placeholder="实际">
+        <input class="desc" data-wdd="${k}" data-w="${w-1}" value="${esc(d.desc||'')}" placeholder="这周花哪了">
+      </span>
     </div>`;
   }
   h+=`</div>`;
@@ -1454,14 +1646,24 @@ function bindLiving(){
   });
   document.querySelectorAll('[data-cpy]').forEach(el=>el.onclick=e=>{
     e.stopPropagation();reportSheet(y+'-'+pad(el.dataset.cpy));});
-  /* 生活费页「储蓄」栏：点开/收起 123长期 与 梦想项目 */
-  document.querySelectorAll('[data-sv]').forEach(el=>el.onclick=e=>{
-    e.stopPropagation();
+  /* 生活费页各栏：点开/收起。储蓄默认展开，固定/浮动/额外默认收起，状态记住 */
+  document.querySelectorAll('[data-sv]').forEach(el=>{
     const m=el.dataset.m, which=el.dataset.sv;
+    const key=m+':'+which;
     const sub=document.querySelector('.saveSub[data-svsub="'+which+'"][data-m="'+m+'"]');
     if(!sub)return;
-    const collapsed=el.classList.toggle('collapsed');
+    /* 默认：储蓄(lv/dm) 展开，固定/浮动/额外(fix/flex/ex) 收起 */
+    const def=!(which==='lv'||which==='dm');
+    const cur=(S.subCol||{})[key];
+    const collapsed=(cur===undefined)?def:!!cur;
+    el.classList.toggle('collapsed',collapsed);
     sub.classList.toggle('collapsed',collapsed);
+    el.onclick=e=>{
+      e.stopPropagation();
+      const now=el.classList.toggle('collapsed');
+      sub.classList.toggle('collapsed',now);
+      S.subCol=S.subCol||{};S.subCol[key]=now;save();
+    };
   });
   document.querySelectorAll('[data-cw]').forEach(el=>el.onclick=()=>toast(
     el.dataset.cw+'：'+money(+el.dataset.amt)+' · '+el.dataset.n+' 次'));
@@ -1518,17 +1720,19 @@ function renderKeep(){
     const fx=mb.querySelector('.flow.minus[data-fx="fix"]');
     if(fx){const f=fx.querySelector('.fv'),p=fx.querySelector('.fp');
       if(f)f.textContent='−'+money(fixSum);
-      if(p)p.textContent=(C.available>0?Math.round(fixSum/C.available*100):0)+'%';}
+      if(p)p.textContent=(C.budget>0?Math.round(fixSum/C.budget*100):0)+'%';}
     const flx=mb.querySelector('.flow.minus[data-fx="flex"]');
     if(flx){const f=flx.querySelector('.fv'),p=flx.querySelector('.fp');
       if(f)f.textContent='−'+money(flexSum);
-      if(p)p.textContent=(C.available>0?Math.round(flexSum/C.available*100):0)+'%';}
-    const pool=C.available-fixSum-flexSum;
+      if(p)p.textContent=(C.budget>0?Math.round(flexSum/C.budget*100):0)+'%';}
+    const pool=C.budget-fixSum-flexSum;
     const sp=(mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0);
     const fl=mb.querySelector('.wkline');
     if(fl){
       const sel=fl.querySelector('select');
-      fl.innerHTML=`<span class="fl">${(pool-sp)<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${(pool-sp)<0?'style="color:var(--red)"':''}>${(pool-sp)<0?money(sp-pool):money(pool-sp)}</b></span>
+      /* 与 monthCalc 同口径：可用含额外收入，额外收入可抵超支 */
+      const CC=monthCalc(kk), net=CC.balance;
+      fl.innerHTML=`<span class="fl">${net<0?'<span style="color:var(--red)">超</span>':'剩余'} <b class="money" ${net<0?'style="color:var(--red)"':''}>${net<0?money(-net):money(net)}</b></span>
         <span class="tiny dim">/ 实际 <b class="money">${money(sp)}</b> · ${pool>0?Math.round(sp/pool*100):0}%</span>
         ${sel?sel.outerHTML:''}`;
       const ns=fl.querySelector('select');
@@ -1538,7 +1742,8 @@ function renderKeep(){
     mb.querySelectorAll('.wk').forEach((el,i)=>{
       const bud=budgetOf(kk,pool,i,wk);
       const em=el.querySelector('.wl em');
-      if(em)em.innerHTML=wkBudgetTxt(pool,bud);});
+      const sp=(mo.wdata||[])[i]?(+((mo.wdata||[])[i].spent)||0):0;
+      if(em)em.innerHTML=wkBudgetTxt(pool,bud,sp);});
   });
 }
 
@@ -1575,7 +1780,7 @@ function weekSheet(k){
   const mo=getMonth(k),C=monthCalc(k);
   const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
   const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
-  const pool=Math.max(0,C.available-fixSum-flexSum);
+  const pool=Math.max(0,C.budget-fixSum-flexSum);
   const wk=mo.weeks||4;
   let arr=(S.wbudget[k]&&S.wbudget[k].length===wk)?[...S.wbudget[k]]
     :Array(wk).fill(Math.round(pool/wk));
@@ -1699,13 +1904,18 @@ function vCalc(){
   const dreamList=S.dreams.filter(d=>(d.monthly||0)>0);
   const dreamSum=dreamList.reduce((s,d)=>s+(+d.monthly||0),0);
   const wk=mo.weeks||4;
-  /* 薪资 − 存储 − 梦想基金 = 本月生活费；再扣固定 + 浮动开销后按周切 */
-  const live=sal-saveSum-dreamSum-debtSum;
-  const pool=live-fixSum-flexSum;
-  const perWk=wk>0?pool/wk:0;
+  /* 新口径：工资 − 固定存储 − 固定开销 − 梦想基金 = 剩余①；再加「存储取出 + 额外收入」，减「浮动开销 + 当月周预算总和」= 剩余② */
+  const wdrawList=withdrawRowsOf(mk);
+  const wdrawSum=wdrawList.reduce((s,r)=>s+r.amt,0);
+  const exList=extraList(mk), exSum=exList.reduce((s,x)=>s+(+x.amt||0),0);
+  const wkBudgetTotal=monthWeekBudgetTotal(mk);
+  const remain1=sal-saveSum-fixSum-dreamSum-debtSum;
+  const remain2=remain1+wdrawSum+exSum-flexSum-wkBudgetTotal;
+  const perWk=wk>0?wkBudgetTotal/wk:0;
   const P=n=>sal>0?Math.round(Math.max(0,n)/sal*100):0;
-  const PL=n=>live>0?Math.round(Math.max(0,n)/live*100):0;
-  const written=(+mo.total||0)===Math.round(live)&&live>0;
+  const PL=n=>remain1>0?Math.round(Math.max(0,n)/remain1*100):0;
+  const live=remain1;                                   /* 「本月可花」沿用剩余①，写入生活费页 */
+  const written=(+mo.total||0)===Math.round(remain1)&&remain1>0;
   const li=(n,name,amt,key,paid,extra)=>`<div class="fixli ${paid?'paid':''}">
       <i style="background:${FIXC[n%FIXC.length]}"></i>
       <span>${esc(name)}</span><b>${money(amt)}${extra||''}</b>
@@ -1744,6 +1954,7 @@ function vCalc(){
     h+=`<div class="sec"><h2>一层一层扣</h2><span class="hint">✏ 改明细</span></div>
     <div class="card" style="padding:4px 14px 12px">
       <div class="tiny dim" style="margin-bottom:9px">存款类行（L1/L2/L3/长期、梦想）右侧圆圈点一下 = 这笔「已存入」<b style="color:var(--green)">变绿并进总览</b>；消费类行（固定/浮动/负债）点一下 = 「已花出」只进生活费页。没点的都在计划里、生活费页不显示。点底部「存入 X 月」可一键把本月存款类全部标绿入账。</div>
+
       <div class="flow minus">
         <span class="fn">固定存储（L1+L2+L3+长期）</span>
         <span class="fv">−${money(saveSum)}</span><span class="fp">${P(saveSum)}%</span>
@@ -1751,13 +1962,13 @@ function vCalc(){
       </div>
       <div class="sub" style="display:block">${LEVELS.map((l,n)=>li(n,l.n,EF[l.k]||0,'lv:'+l.k,isPaid(mk,'lv:'+l.k))).join('')}</div>
 
-      <div class="flow minus">
+      ${S.dreams.length?`<div class="flow minus">
         <span class="fn">梦想基金</span>
         <span class="fv">−${money(dreamSum)}</span><span class="fp">${P(dreamSum)}%</span>
         <span class="fg"><button class="adj" id="calcDream" title="改各项目月投">${PEN}</button></span>
       </div>
       <div class="sub" style="display:block">${dreamList.length?dreamList.map((d,n)=>li(n,d.name,+d.monthly||0,'dm:'+d.id,isPaid(mk,'dm:'+d.id))).join('')
-        :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}</div>
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}</div>`:''}
 
       <div class="flow minus">
         <span class="fn">固定开销</span>
@@ -1768,7 +1979,39 @@ function vCalc(){
         .map((i,n)=>li(n,i.tag,+i.amt||0,'fx:'+i.id,isPaid(mk,'fx:'+i.id))).join('')
         :`<div class="fixli"><i style="background:var(--dim)"></i><span>点上面 ✏ 一次性填进去</span></div>`}</div>
 
-      <div class="flow minus">
+      ${debtSum>0?`<div class="flow minus">
+        <span class="fn">本月还款</span>
+        <span class="fv">−${money(debtSum)}</span><span class="fp">${P(debtSum)}%</span>
+        <span class="fg"></span>
+      </div>
+      <div class="sub" style="display:block">${debtList.map((d,n)=>li(n,d.name,+d.per||0,'db:'+esc(d.name),isPaid(mk,'db:'+d.name))).join('')}</div>`:''}
+
+      <div style="border-top:2px solid var(--line);margin-top:4px"></div>
+      <div class="flow" style="border-bottom:none;padding:9px 0">
+        <span class="fn" style="font-size:14px;font-weight:640;color:var(--text)">剩余</span>
+        <span style="font-size:15px;font-weight:660;color:#E8760A" class="money">${money(remain1)}</span>
+      </div>
+      <div style="border-top:2px solid var(--line)"></div>
+
+      <div class="flow plus" style="border-bottom:none;margin-top:6px">
+        <span class="fn">存储取出</span>
+        <span class="fv" style="color:var(--green)">+${money(wdrawSum)}</span><span class="fp"></span>
+        <span class="fg"><button class="adj" id="calcWithdraw">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${wdrawList.length?wdrawList.map(r=>`<div class="fixli" style="color:var(--red)">
+        <i style="background:${r.c}"></i><span>${esc(r.name)} 取出</span><b style="color:var(--red)">−${money(r.amt)}</b></div>`).join('')
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>本月还没有取出。总览里点各档「取出」记一笔</span></div>`}</div>
+
+      <div class="flow plus" style="border-bottom:none">
+        <span class="fn">额外收入</span>
+        <span class="fv" style="color:var(--green)">+${money(exSum)}</span><span class="fp"></span>
+        <span class="fg"><button class="adj" id="calcExtra">${PEN}</button></span>
+      </div>
+      <div class="sub" style="display:block">${exList.length?exList.map((x,n)=>`<div class="fixli">
+        <i style="background:#7C4DEE"></i><span>${esc(x.src||'其他')}</span><b style="color:var(--green)">+${money(x.amt)}</b></div>`).join('')
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>奖金、副业…点 ✏ 记一笔</span></div>`}</div>
+
+      <div class="flow minus" style="margin-top:6px">
         <span class="fn">浮动开销</span>
         <span class="fv">−${money(flexSum)}</span><span class="fp">${P(flexSum)}%</span>
         <span class="fg"><button class="adj" id="calcFlex" title="编辑浮动开销">${PEN}</button></span>
@@ -1777,24 +2020,20 @@ function vCalc(){
         .map((i,n)=>li(n,i.tag,+i.amt||0,'fl:'+i.id,isPaid(mk,'fl:'+i.id))).join('')
         :`<div class="fixli"><i style="background:var(--dim)"></i><span>人情、看病、修车…不固定的，点 ✏ 写进去</span></div>`}</div>
 
-      ${debtSum>0?`<div class="flow minus">
-        <span class="fn">本月还款</span>
-        <span class="fv">−${money(debtSum)}</span><span class="fp">${P(debtSum)}%</span>
-        <span class="fg"></span>
-      </div>
-      <div class="sub" style="display:block">${debtList.map((d,n)=>li(n,d.name,+d.per||0,'db:'+esc(d.name),isPaid(mk,'db:'+d.name))).join('')}</div>`:''}
-
-      <div class="flow total">
-        <span class="fn">本月生活费</span>
-        <span class="fv" style="color:${live<0?'var(--red)':'var(--green)'}">${money(live)}</span>
-        <span class="fp">${P(live)}%</span><span class="fg"></span>
-      </div>
-      <div class="flow hl" style="border-bottom:none">
-        <span class="fn">扣完这些</span>
-        <span class="fv" style="color:${pool<0?'var(--red)':'var(--green)'}">${money(Math.abs(pool))}</span>
-        <span class="fp">${pool<0?'不够':'周均 '+money(perWk)}</span>
+      <div class="flow minus" style="margin-top:6px">
+        <span class="fn">周预算总额（${wk} 周）</span>
+        <span class="fv">−${money(wkBudgetTotal)}</span><span class="fp">周均 ${money(perWk)}</span>
         <span class="fg"><button class="adj" data-cwk="1">${wk} 周</button></span>
       </div>
+      <div class="sub" style="display:block">${Array.from({length:wk},(_,i)=>{const bud=budgetOf(mk,(+mo.total||0)-fixSum-flexSum,i,wk);
+        return `<div class="fixli"><i style="background:#D97706;opacity:.85"></i><span>第 ${i+1} 周</span><b>${money(bud)}</b></div>`;}).join('')}</div>
+
+      <div style="border-top:2px solid var(--line);margin-top:11px"></div>
+      <div class="flow" style="border-bottom:none;padding:9px 0">
+        <span class="fn" style="font-size:14px;font-weight:640;color:var(--text)">剩余</span>
+        <span style="font-size:15px;font-weight:660;color:#E8760A" class="money">${remain2<0?'-'+money(-remain2):money(remain2)}</span>
+      </div>
+      <div style="border-top:2px solid var(--line)"></div>
     </div>
 
     <div class="sec"><h2>写入 ${m} 月生活费</h2><span class="hint">${written?'已同步':'算好就送过去'}</span></div>
@@ -1806,7 +2045,7 @@ function vCalc(){
           <span class="muted">每周 <b class="money" style="color:var(--text)">${money(perWk)}</b></span>
           ${written?'<span class="pill g">已同步</span>':'<span class="pill r">未同步</span>'}</span>
       </div>
-      <div class="tiny dim" style="margin-bottom:10px">本月可花是还没扣开销的总数，每周是扣掉固定 + 浮动开销后能花的。
+      <div class="tiny dim" style="margin-bottom:10px">本月可花是扣完该存的之后的总数，每周预算由它按周切分。
         写过去以后，生活费页记实际花了多少，两边一对就知道差在哪。</div>
       <div class="row" style="gap:8px">
         <button class="btn ${written?'':'primary'}" id="applyLive" style="flex:1">写入生活费</button>
@@ -1943,6 +2182,59 @@ function dreamEditSheet(){
 
 /* ---- 开销编辑：一次性填完，上面看占比，下面看周均 ----
    kind = 'fix' 固定开销（mo.items） / 'flex' 浮动开销（mo.flex） ---- */
+/* ================= 额外收入编辑（生活费页 + 计算页共用） ================= */
+function extraInSheet(k){
+  const m=parseInt(k.split('-')[1],10);
+  const tmp=extraList(k).map(x=>({src:x.src||'',amt:+x.amt||0,id:x.id||('e'+Math.random().toString(36).slice(2,9))}));
+  const srcs=['奖金','补贴','报销','副业','红包','利息','退款'];
+  const draw=()=>{
+    const box=$('#exRows');if(!box)return;
+    box.innerHTML=tmp.length?tmp.map((x,n)=>`<div class="edli">
+      <input type="text" class="exsrc" data-sn="${n}" value="${esc(x.src)}" placeholder="来源"
+        style="flex:1;min-width:0">
+      <input type="text" inputmode="decimal" class="examt" data-n="${n}" value="${x.amt||''}" placeholder="金额"
+        style="width:90px;text-align:right" class="money">
+      <button class="xbtn exdel" data-n="${n}" style="width:24px;height:24px">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`).join('')
+      :`<div class="empty" style="padding:10px 0">点下面的名目加一笔，或新建</div>`;
+    const sum=tmp.reduce((s,x)=>s+x.amt,0);
+    const hd=$('#exHead');
+    if(hd)hd.innerHTML=`<div class="edHead"><div class="r1"><span class="tiny muted">额外收入合计</span>
+      <b class="big" style="color:var(--green)">+${money(sum)}</b></div>
+      <div class="tiny dim" style="margin-top:5px">这部分会加进本月可用钱（计算页也能看到）</div></div>`;
+    box.querySelectorAll('.examt').forEach(el=>el.oninput=()=>{
+      tmp[+el.dataset.n].amt=num(el.value);
+      const end=el.value.length;draw();
+      const nx=box.querySelector(`.examt[data-n="${el.dataset.n}"]`);
+      if(nx){redrawing=true;nx.focus();try{nx.setSelectionRange(end,end);}catch(e){}redrawing=false;}});
+    box.querySelectorAll('.exsrc').forEach(el=>el.oninput=()=>{tmp[+el.dataset.sn].src=el.value;});
+    box.querySelectorAll('.exdel').forEach(b=>b.onclick=()=>{tmp.splice(+b.dataset.n,1);draw();});
+    document.querySelectorAll('#exTags .chip').forEach(c=>c.onclick=()=>{
+      tmp.push({src:c.dataset.t,amt:0,id:'e'+Math.random().toString(36).slice(2,9)});draw();
+      const all=box.querySelectorAll('.examt'),last=all[all.length-1];
+      if(last){redrawing=true;last.focus();redrawing=false;}});
+  };
+  sheet(`${sheetHead(m+' 月 · 额外收入')}
+    <div id="exHead"></div>
+    <div id="exRows"></div>
+    <div class="chips" id="exTags" style="margin-top:10px">
+      ${srcs.map((t,i)=>`<span class="chip c${i%5}" data-t="${esc(t)}">+ ${esc(t)}</span>`).join('')}
+      <span class="chip add" id="exNew">+ 新来源</span>
+    </div>
+    <div class="btns"><button class="btn" onclick="closeSheet()">取消</button>
+      <button class="btn primary" id="okEx">确定</button></div>`,()=>{
+    draw();
+    $('#exNew').onclick=()=>{
+      const v=prompt('来源名称');if(!v)return;
+      tmp.push({src:v.trim(),amt:0,id:'e'+Math.random().toString(36).slice(2,9)});draw();};
+    $('#okEx').onclick=()=>{
+      S.extraIn=S.extraIn||{};
+      S.extraIn[k]=tmp.filter(x=>x.amt>0||x.src).map(x=>({id:x.id,src:x.src,amt:Math.max(0,+x.amt||0)}));
+      save();closeSheet();render();toast('额外收入已更新');
+    };
+  });
+}
+
 function fixEditSheet(k,kind,fromCalc){
   kind=kind||'fix';
   const isFix=kind==='fix', TITLE=isFix?'固定开销':'浮动开销';
@@ -2066,6 +2358,8 @@ function bindCalc(){
   const cd=$('#calcDream');if(cd)cd.onclick=()=>dreamEditSheet();
   const cf=$('#calcFix');if(cf)cf.onclick=()=>fixEditSheet(mk,'fix',true);
   const cfx=$('#calcFlex');if(cfx)cfx.onclick=()=>fixEditSheet(mk,'flex',true);
+  const cw=$('#calcWithdraw');if(cw)cw.onclick=()=>toast('取出请到总览页，点各档 / 梦想基金的「取出」');
+  const ce=$('#calcExtra');if(ce)ce.onclick=()=>extraInSheet(mk);
   const al=$('#applyLive');
   if(al)al.onclick=()=>{
     const mk=calcKey(),mo=getMonth(mk),r=calcLive(mk);

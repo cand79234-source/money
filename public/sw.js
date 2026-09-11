@@ -1,5 +1,6 @@
 // 攒钱计划 PWA Service Worker：缓存应用外壳，离线可访问
-const CACHE = 'savings-plan-v3';
+// 改动前端后请把 CACHE 版本号 +1，旧缓存会在 activate 时自动清掉
+const CACHE = 'savings-plan-v5';
 const SHELL = [
   '/',
   '/index.html',
