@@ -850,7 +850,7 @@ function healthOf(q){
   else out.push(['warn',`只剩 <b>${money(q.free)}</b>（${pf}%）能自由支配，抗风险偏弱`]);
 
   const dreamSum=S.dreams.reduce((s,d)=>s+(+d.monthly||0),0);
-  if(dreamSum>0)out.push(['',`梦想基金计划每月 <b>${money(dreamSum)}</b>（${P(dreamSum)}%）算消费，没计进储蓄；在计算页点 ✓ 才算本月真投入`]);
+  if(dreamSum>0)out.push(['',`梦想基金每月 <b>${money(dreamSum)}</b>（${P(dreamSum)}%）算消费，没计进储蓄`]);
 
   const bad=out.some(x=>x[0]==='bad'),warn=out.some(x=>x[0]==='warn');
   const verdict=bad?['bad','偏危险']:warn?['warn','有点紧']:['good','健康'];
@@ -1019,7 +1019,7 @@ function vOverview(){
     const wdAll=withdrawnOf('dm:'+d.id);                       /* 累计取出：算真实余额 */
     const wdThis=withdrawnOf('dm:'+d.id,S.curMonth||curKey()); /* 本月取出：只用于标签展示 */
     const net=Math.max(0,(+d.saved||0)-wdAll);
-    /* 本月实际投入：勾了 ✓ 才有，没勾是 0（计划归计划，不一定照做） */
+    /* 当月实际投入：勾了才有 */
     const paidNow=isPaid(S.curMonth||curKey(),'dm:'+d.id)?(+d.monthly||0):0;
     const tag=!isFinite(e.delta)?`<span class="pill r">未设月投</span>`
       :e.delta<0?`<span class="pill g">提前 ${humanDays(-e.delta)}</span>`
@@ -1049,7 +1049,7 @@ function vOverview(){
         <button class="btn sm primary" data-dreamdone="${d.id}" style="flex:1">完成</button>
       </div>
       <div class="foot" style="margin-top:8px">
-        <span class="setlbl">本月计划 <b class="money">${money(d.monthly)}</b>
+        <span class="setlbl">计划 <b class="money">${money(d.monthly)}</b>
           <span class="money" style="color:${paidNow>0?'var(--green)':'var(--dim)'}">/ ${money(paidNow)}</span>
           <span class="pill salpctd" data-dream="${d.id}" style="margin-left:5px;${(+S.salary||0)>0?'':'display:none'}">薪资 ${(+S.salary||0)>0?Math.round((+d.monthly||0)/(+S.salary)*100):0}%</span></span>
         <button class="adj" data-dreamalloc="${d.id}">调整
@@ -1905,13 +1905,8 @@ function vCalc(){
   const debtSum=debtList.reduce((s,d)=>s+(+d.per||0),0);
   const sal=+S.salary||0;
   const dreamList=S.dreams.filter(d=>(d.monthly||0)>0);
-  /* 计划月投总额（写在计划里，不一定要执行） */
-  const dreamPlanSum=dreamList.reduce((s,d)=>s+(+d.monthly||0),0);
-  /* 本月实际投入：只有勾了 ✓ 的梦想项目才算真花钱，没勾的仍在计划中 */
-  const dreamPaidList=dreamList.filter(d=>isPaid(mk,'dm:'+d.id));
-  const dreamSum=dreamPaidList.reduce((s,d)=>s+(+d.monthly||0),0);
-  const dreamUnpaid=dreamList.filter(d=>!isPaid(mk,'dm:'+d.id));
-  const dreamUnpaidSum=dreamUnpaid.reduce((s,d)=>s+(+d.monthly||0),0);
+  /* 本月实际投入：勾了 ✓ 的梦想项目才算真花钱 */
+  const dreamSum=dreamList.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+(+d.monthly||0),0);
   const wk=mo.weeks||4;
   /* 口径：工资 − 固定存储 − 固定开销 − 已勾选的梦想基金 − 负债 = 剩余①；
      再加「存储取出 + 额外收入」，减「浮动开销 + 当月周预算总和」= 剩余②
@@ -1964,7 +1959,7 @@ function vCalc(){
   }else{
     h+=`<div class="sec"><h2>一层一层扣</h2><span class="hint">✏ 改明细</span></div>
     <div class="card" style="padding:4px 14px 12px">
-      <div class="tiny dim" style="margin-bottom:9px">存款类行（L1/L2/L3/长期）右侧圆圈点一下 = 这笔「已存入」<b style="color:var(--green)">变绿并进总览</b>；消费类行（固定/浮动/负债）点一下 = 「已花出」只进生活费页。<b style="color:#B45309">梦想基金特殊：写着月投额只是「计划」，点 ✓ 才算本月真投入、才从剩余里扣</b>。底部「存入 X 月存储」可一键把四档标绿入账（不含梦想，梦想需逐项确认）。</div>
+      <div class="tiny dim" style="margin-bottom:9px">存款类行（L1/L2/L3/长期、梦想）右侧圆圈点一下 = 这笔「已存入」<b style="color:var(--green)">变绿并进总览</b>；消费类行（固定/浮动/负债）点一下 = 「已花出」只进生活费页。没点的都在计划里、生活费页不显示。点底部「存入 X 月」可一键把本月存款类全部标绿入账。</div>
 
       <div class="flow minus">
         <span class="fn">固定存储（L1+L2+L3+长期）</span>
@@ -1974,14 +1969,12 @@ function vCalc(){
       <div class="sub" style="display:block">${LEVELS.map((l,n)=>li(n,l.n,EF[l.k]||0,'lv:'+l.k,isPaid(mk,'lv:'+l.k))).join('')}</div>
 
       ${S.dreams.length?`<div class="flow minus">
-        <span class="fn">梦想基金<span class="tiny dim" style="font-weight:400"> · 勾了才算</span></span>
-        <span class="fv">−${money(dreamSum)}</span><span class="fp">${dreamUnpaidSum>0?`还有 ${money(dreamUnpaidSum)} 未投入`:P(dreamSum)+'%'}</span>
+        <span class="fn">梦想基金</span>
+        <span class="fv">−${money(dreamSum)}</span><span class="fp">${P(dreamSum)}%</span>
         <span class="fg"><button class="adj" id="calcDream" title="改各项目月投">${PEN}</button></span>
       </div>
       <div class="sub" style="display:block">${dreamList.length?dreamList.map((d,n)=>li(n,d.name,+d.monthly||0,'dm:'+d.id,isPaid(mk,'dm:'+d.id))).join('')
-        :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}
-        ${dreamUnpaid.length?`<div class="fixli" style="color:var(--dim)">
-          <i style="background:var(--dim)"></i><span>${dreamUnpaid.map(d=>esc(d.name)).join('、')} · 计划中，本月未投入，点 ✓ 才开始存</span></div>`:''}</div>`:''}
+        :`<div class="fixli"><i style="background:var(--dim)"></i><span>总览里还没给项目设月投</span></div>`}</div>`:''}
 
       <div class="flow minus">
         <span class="fn">固定开销</span>
@@ -2063,7 +2056,7 @@ function vCalc(){
       <div class="row" style="gap:8px">
         <button class="btn ${written?'':'primary'}" id="applyLive" style="flex:1">写入生活费</button>
         <button class="btn" id="bookSave" ${(S.booked||{})[mk]?'style="opacity:.5"':''}>${
-          (S.booked||{})[mk]?m+' 月存储已入账':'存入 '+m+' 月存储'}</button>
+          (S.booked||{})[mk]?m+' 月已入账':'存入 '+m+' 月'}</button>
         <button class="btn" id="adjMonth">调整本月</button>
       </div>
     </div>
@@ -2387,12 +2380,12 @@ function bindCalc(){
   const bs=$('#bookSave');
   if(bs)bs.onclick=()=>{
     const ck=calcKey();
-    /* 一键把本月四档存储（L1/L2/L3/长期）标绿（已给出）并结算进总览；幂等，重复点不重复记。
-       注意：梦想基金不在此列 —— 它是「计划」，要不要执行由用户逐项点 ✓ 决定，不该被一键带进去。 */
+    /* 一键把本月所有存款类行标绿（已给出）并结算进总览；幂等，重复点不重复记 */
     LEVEL_KEYS.forEach(k=>setPaid(ck,depositLvKey(k),true));
+    (S.dreams||[]).forEach(dm=>setPaid(ck,depositDmKey(dm.id),true));
     reconcileDeposit(ck);
     S.booked=S.booked||{};S.booked[ck]=true;
-    save();render();toast('本月存储已入账（梦想基金需逐项点 ✓），总览已更新');};
+    save();render();toast('本月存款已入账，总览已更新');};
   const am=$('#adjMonth');if(am)am.onclick=()=>adjustSheet();
   document.querySelectorAll('[data-paid]').forEach(b=>b.onclick=()=>{
     const key=b.dataset.paid, mk=calcKey();
