@@ -426,7 +426,7 @@ function parseD(s){const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c
 function addDays(s,d){const t=parseD(s);t.setDate(t.getDate()+Math.round(d));
   return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());}
 function diffDays(a,b){return Math.round((parseD(b)-parseD(a))/86400000);}
-function fmtDate(s){const[a,b,c]=s.split('-');return a+'.'+b+'.'+c;}
+function fmtDate(s){ if(!s)return '—'; const[a,b,c]=s.split('-');return a+'.'+b+'.'+c;}
 function yearKey(){return (S.curMonth||curKey()).split('-')[0];}
 function humanDays(d){d=Math.round(d);
   if(d<=0)return '已达成';
@@ -508,15 +508,16 @@ function withdrawRowsOf(mk){
 /* 某月取出总额（计算页「存储取出」那行的合计） */
 function withdrawSum(mk){return withdrawRowsOf(mk).reduce((s,r)=>s+r.amt,0);}
 /* 当月所有周的预算总和（周预算，计算页横线②要减的就是它） */
-function monthWeekBudgetTotal(k){
+function monthWeekBudgetTotal(k, avail){
   const mo=getMonth(k),wk=mo.weeks||4;
   const items=mo.items||[];
   const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
   const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
-  const total=(+mo.total||0);
+  /* 计算页传入自己的「本月可花（毛）」；生活费页不传 → 退回 mo.total */
+  const total=(avail==null)?(+mo.total||0):avail;
   const pool=total-fixSum-flexSum;
   let sum=0;for(let w=0;w<wk;w++)sum+=budgetOf(k,pool,w,wk);
-  return sum;
+  return Math.max(0,sum);
 }
 /* 某月「存储取出 + 额外收入」都归入可用钱的增项 */
 function monthExtraIn(k){return extraSum(k);}
@@ -582,11 +583,13 @@ function budgetOf(k,pool,wIdx,wk){
   if(c&&c.length===wk)return Math.max(0,+c[wIdx]||0);
   return wk>0?pool/wk:0;
 }
-/* 周预算文案：前面是预算，后面是「预算 − 实际」（这周还能花多少）。超了就红字 -XXX */
-function wkBudgetTxt(pool,bud,spent){
-  spent=+spent||0;
+/* 周预算文案：前面是预算，后面是「预算 − 实际 − 之前各周累计净支出」（这周还能花多少）。
+   carry = 之前各周(实花 − 预算)的累计：超支为正(后面周变少)、省下为负(后面周变多)，向后滚动。
+   超了就红字 -XXX */
+function wkBudgetTxt(pool,bud,spent,carry){
+  spent=+spent||0; carry=+carry||0;
   if(bud>0){
-    const left=bud-spent;
+    const left=bud-spent-carry;
     return `预算 ${money(bud)} <span class="dim">/</span> ${left<0
       ? `<b style="color:var(--red)">-${money(-left)}</b>`
       : `<b style="color:var(--green)">${money(left)}</b>`}`;
@@ -617,9 +620,9 @@ function monthReport(k){
   rebuildCarry();
   const mo=getMonth(k),C=monthCalc(k),m=parseInt(k.split('-')[1],10);
   const items=mo.items||[];
-  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
+  const fixSum=items.filter(i=>isPaid(k,'fx:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
   const flexList=mo.flex||[];
-  const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=flexList.filter(i=>isPaid(k,'fl:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
   const wk=mo.weeks||4;
   const pool=C.budget-fixSum-flexSum;
   const sal=+S.salary||0;
@@ -633,12 +636,12 @@ function monthReport(k){
 `;
   t+=`固定开销合计 ${money(fixSum)}（占可用 ${pc(fixSum)}%${sal?'，占薪资 '+pcs(fixSum)+'%':''}）
 `;
-  items.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
+  items.filter(i=>isPaid(k,'fx:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
     t+=`  - ${i.tag} ${money(+i.amt||0)}（占可用 ${pc(+i.amt||0)}%）${i.note?'  '+i.note:''}
 `;});
   t+=`浮动开销合计 ${money(flexSum)}（占可用 ${pc(flexSum)}%${sal?'，占薪资 '+pcs(flexSum)+'%':''}）
 `;
-  flexList.slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
+  flexList.filter(i=>isPaid(k,'fl:'+i.id)).slice().sort((a,b)=>(+b.amt||0)-(+a.amt||0)).forEach(i=>{
     t+=`  - ${i.tag} ${money(+i.amt||0)}（占可用 ${pc(+i.amt||0)}%）${i.note?'  '+i.note:''}
 `;});
   t+=`周支出合计 ${money((mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0))}（占可用 ${pc((mo.wdata||[]).reduce((s,w)=>s+(+w.spent||0),0))}%）
@@ -683,6 +686,7 @@ function dreamEta(d){
   if(remain<=0)return{remain:0,date:todayStr(),delta:0,pct:100};
   const m=Math.max(0,d.monthly||0);
   if(m<=0)return{remain,date:null,delta:Infinity,pct};
+  if(!d.deadline)return{remain,date:null,delta:null,pct,noDeadline:true};
   const days=Math.ceil(remain/m*DAYS_PER_MONTH);
   return{remain,date:addDays(todayStr(),days),delta:diffDays(d.deadline,addDays(todayStr(),days)),pct};
 }
@@ -1491,13 +1495,22 @@ function monthBody(k,m,mo,C){
   if(C.extraIn)h+=`<div class="between tiny" style="padding:1px 0 3px">
     <span class="dim">额外收入（可抵超支，不占预算）</span>
     <span style="color:var(--green)">＋ ${money(C.extraIn)}</span></div>`;
-  const A=monthAlloc(k);
-  const lvSum=LEVELS.reduce((s,l)=>s+(A[l.k]||0),0);
-  const lvRows=LEVELS.map((l,n)=>`<div class="fixli"><i style="background:${l.c}"></i>
-      <span>${esc(l.n)}</span><b>${money(A[l.k]||0)}</b></div>`).join('');
-  const dmSum=(S.dreams||[]).reduce((s,d)=>s+(+d.monthly||0),0);
-  const dmRows=(S.dreams||[]).map((d,n)=>`<div class="fixli"><i style="background:#DB2777"></i>
-      <span>${esc(d.name)}</span><b>${money(+d.monthly||0)}</b></div>`).join('');
+  /* 储蓄：只显示计算页勾了「已给出」的档（没存的不算）。
+     金额 = 计划配比 effAlloc + 当月额外存入 extraSave（调整本月储蓄里手动加的），
+     和总览 savedOf 对上；正常月份 extraSave 为 0，行为和以前一致 */
+  const EF=effAlloc(monthAlloc(k));
+  const extraSv=mo.extraSave||{};
+  /* 只显示计算页勾了「已给出」、且还没攒满的档（攒满的档不占生活费，不显示） */
+  const lvActive=LEVELS.filter(l=>isPaid(k,'lv:'+l.k) && savedOf(l.k) < l.target);
+  /* 当月实际存入 = bookL（入账时记的计划实投，避免某档攒满后 effAlloc 归零把已存金额显示成 0）+ extraSave（调整本月储蓄手动加的） */
+  const lvAmt=l=>((mo.bookL&&mo.bookL[l.k]!=null)?mo.bookL[l.k]:(EF[l.k]||0))+(extraSv[l.k]||0);
+  const lvSum=lvActive.reduce((s,l)=>s+lvAmt(l),0);
+  const lvRows=lvActive.map((l,n)=>`<div class="fixli"><i style="background:${l.c}"></i>
+      <span>${esc(l.n)}</span><b>${money(lvAmt(l))}</b></div>`).join('');
+  const dmActive=(S.dreams||[]).filter(d=>isPaid(k,'dm:'+d.id));
+  const dmSum=dmActive.reduce((s,d)=>s+dreamMonthly(k,d),0);
+  const dmRows=dmActive.map((d,n)=>`<div class="fixli"><i style="background:#DB2777"></i>
+      <span>${esc(d.name)}</span><b>${money(dreamMonthly(k,d))}</b></div>`).join('');
   const svPct=x=>C.budget>0?Math.round(x/C.budget*100):0;
   h+=`<div class="flow save" data-sv="lv" data-m="${m}" style="margin-top:8px">
       <span class="fn">储蓄</span>
@@ -1505,16 +1518,17 @@ function monthBody(k,m,mo,C){
       <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="sub saveSub" data-svsub="lv" data-m="${m}">
-      ${lvRows||`<div class="fixli"><i style="background:var(--dim)"></i><span>去计算页设各档月投</span></div>`}
+      ${lvActive.length?lvRows
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>去计算页勾选储蓄「已给出」才会出现在这里</span></div>`}
     </div>`;
   h+=`<div class="flow save" data-sv="dm" data-m="${m}" style="margin-top:8px">
       <span class="fn">梦想</span>
       <span class="fv">−${money(dmSum)}</span><span class="fp">${svPct(dmSum)}%</span>
       <span class="caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
-    <div class="sub saveSub" data-svsub="dm" data-m="${m}">
-      ${dmRows||`<div class="fixli"><i style="background:var(--dim)"></i><span>去总览添加梦想项目</span></div>`}
-    </div>`;
+    <div class="sub saveSub" data-svsub="dm" data-m="${m}">${
+      dmActive.length?dmRows
+      :`<div class="fixli"><i style="background:var(--dim)"></i><span>去计算页勾选梦想「已给出」才会出现在这里</span></div>`}</div>`;
   h+=`<div class="flow save" data-sv="fix" data-m="${m}" style="margin-top:8px">
       <span class="fn">固定开销</span>
       <span class="fv" style="color:var(--red)">−${money(fixSum)}</span><span class="fp">${pctOf}%</span>
@@ -1555,16 +1569,19 @@ function monthBody(k,m,mo,C){
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
       </span>
     </div>`;
+  const wd=(mo.wdata||[]);
+  let carry=0;
   for(let w=1;w<=wk;w++){
-    const d=(mo.wdata||[])[w-1]||{};
+    const d=wd[w-1]||{};
     const bud=budgetOf(k,pool,w-1,wk);
     h+=`<div class="wk">
-      <span class="wl"><b>第 ${w} 周</b><em>${wkBudgetTxt(pool,bud,d.spent)}</em></span>
+      <span class="wl"><b>第 ${w} 周</b><em>${wkBudgetTxt(pool,bud,d.spent,carry)}</em></span>
       <span class="wkin">
         <input class="spent money" data-wd="${k}" data-w="${w-1}" type="number" value="${d.spent===undefined||d.spent===null?'':d.spent}" placeholder="实际">
         <input class="desc" data-wdd="${k}" data-w="${w-1}" value="${esc(d.desc||'')}" placeholder="这周花哪了">
       </span>
     </div>`;
+    carry += (+d.spent||0) - bud;
   }
   h+=`</div>`;
   return h;
@@ -1758,11 +1775,13 @@ function renderKeep(){
       if(ns)ns.onchange=()=>{getMonth(kk).weeks=+ns.value;save();render();};
     }
     const wk=mo.weeks||4;
+    let carry=0;
     mb.querySelectorAll('.wk').forEach((el,i)=>{
       const bud=budgetOf(kk,pool,i,wk);
       const em=el.querySelector('.wl em');
       const sp=(mo.wdata||[])[i]?(+((mo.wdata||[])[i].spent)||0):0;
-      if(em)em.innerHTML=wkBudgetTxt(pool,bud,sp);});
+      if(em)em.innerHTML=wkBudgetTxt(pool,bud,sp,carry);
+      carry += sp - bud;});
   });
 }
 
@@ -1869,9 +1888,9 @@ function tagSheet(){
 function analyze(k,alloc){
   const mo=getMonth(k),C=monthCalc(k),sal=+S.salary||0;
   const items=mo.items||[];
-  const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
-  const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
-  const EF=effAlloc(alloc),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  const fixSum=items.filter(i=>isPaid(k,'fx:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
+  const flexSum=(mo.flex||[]).filter(i=>isPaid(k,'fl:'+i.id)).reduce((s,i)=>s+(+i.amt||0),0);
+  const EF=effAlloc(alloc),saveSum=LEVEL_KEYS.filter(x=>isPaid(k,'lv:'+x)).reduce((s,x)=>s+(EF[x]||0),0);
   const debtSum=S.debts.reduce((s,d)=>{
     const paid=Math.min(+d.total||0,(d.paid||0)*(+d.per||0));
     return s+(((+d.total||0)-paid)>0?(+d.per||0):0);},0);
@@ -1916,7 +1935,8 @@ function vCalc(){
   const fixSum=items.reduce((s,i)=>s+(+i.amt||0),0);
   const flexList=mo.flex||[];
   const flexSum=flexList.reduce((s,i)=>s+(+i.amt||0),0);
-  const EF=effAlloc(monthAlloc(mk)),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  /* 储蓄只扣「已给出」的：没勾的档这月没存，钱还留在生活费里（我可能这月不存） */
+  const EF=effAlloc(monthAlloc(mk)),saveSum=LEVEL_KEYS.filter(x=>isPaid(mk,'lv:'+x)).reduce((s,x)=>s+(EF[x]||0),0);
   const debtList=S.debts.filter(d=>((+d.total||0)-Math.min(+d.total||0,(d.paid||0)*(+d.per||0)))>0);
   const debtSum=debtList.reduce((s,d)=>s+(+d.per||0),0);
   const sal=+S.salary||0;
@@ -1931,7 +1951,9 @@ function vCalc(){
   const wdrawList=withdrawRowsOf(mk);
   const wdrawSum=wdrawList.reduce((s,r)=>s+r.amt,0);
   const exList=extraList(mk), exSum=exList.reduce((s,x)=>s+(+x.amt||0),0);
-  const wkBudgetTotal=monthWeekBudgetTotal(mk);
+  /* 计算页「本月可花（毛）」= 工资 − 存储 − 梦想基金 − 负债（固定开销下面和周预算一起扣） */
+  const liveGross=sal-saveSum-dreamSum-debtSum;
+  const wkBudgetTotal=monthWeekBudgetTotal(mk, liveGross);
   const remain1=sal-saveSum-fixSum-dreamSum-debtSum;
   const remain2=remain1+wdrawSum+exSum-flexSum-wkBudgetTotal;
   const perWk=wk>0?wkBudgetTotal/wk:0;
@@ -2048,7 +2070,7 @@ function vCalc(){
         <span class="fv">−${money(wkBudgetTotal)}</span><span class="fp">周均 ${money(perWk)}</span>
         <span class="fg"><button class="adj" data-cwk="1">${wk} 周</button></span>
       </div>
-      <div class="sub" style="display:block">${Array.from({length:wk},(_,i)=>{const bud=budgetOf(mk,(+mo.total||0)-fixSum-flexSum,i,wk);
+      <div class="sub" style="display:block">${Array.from({length:wk},(_,i)=>{const bud=budgetOf(mk, liveGross-fixSum-flexSum, i, wk);
         return `<div class="fixli"><i style="background:#D97706;opacity:.85"></i><span>第 ${i+1} 周</span><b>${money(bud)}</b></div>`;}).join('')}</div>
 
       <div style="border-top:2px solid var(--line);margin-top:11px"></div>
@@ -2361,8 +2383,9 @@ function adjustSheet(){
       <button class="btn primary" id="okAdj">确认调整</button></div>`,()=>{
     draw();
     $('#okAdj').onclick=()=>{
+      const mo=getMonth(mk);
       LEVELS.forEach(l=>{const el=document.querySelector('[data-k="'+l.k+'"]');const v=num(el?el.value:0);
-        if(v>0)S.saved[l.k]=(S.saved[l.k]||0)+v;});
+        if(v>0){S.saved[l.k]=(S.saved[l.k]||0)+v; mo.extraSave=mo.extraSave||{}; mo.extraSave[l.k]=(mo.extraSave[l.k]||0)+v;}});
       save();closeSheet();render();toast('已调整本月储蓄');};
   });
 }
@@ -2424,7 +2447,8 @@ function calcLive(mk){
   const mo=getMonth(mk);
   const fixSum=(mo.items||[]).reduce((s,i)=>s+(+i.amt||0),0);
   const flexSum=(mo.flex||[]).reduce((s,i)=>s+(+i.amt||0),0);
-  const EF=effAlloc(monthAlloc(mk)),saveSum=LEVEL_KEYS.reduce((s,x)=>s+(EF[x]||0),0);
+  /* 储蓄只扣「已给出」的：没勾的档这月没存，钱还留在生活费里（我可能这月不存） */
+  const EF=effAlloc(monthAlloc(mk)),saveSum=LEVEL_KEYS.filter(x=>isPaid(mk,'lv:'+x)).reduce((s,x)=>s+(EF[x]||0),0);
   /* 梦想基金：只算该月已勾选 ✓ 的，金额按「本月投入额」（默认=计划，可在计算页单独改） */
   const dreamSum=S.dreams.filter(d=>isPaid(mk,'dm:'+d.id)).reduce((s,d)=>s+dreamMonthly(mk,d),0);
   const debtSum=S.debts.reduce((s,d)=>{
